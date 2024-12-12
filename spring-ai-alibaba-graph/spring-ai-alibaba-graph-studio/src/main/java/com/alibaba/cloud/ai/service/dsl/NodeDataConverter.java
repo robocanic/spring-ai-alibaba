@@ -1,12 +1,15 @@
 package com.alibaba.cloud.ai.service.dsl;
 
+import com.alibaba.cloud.ai.graph.action.NodeAction;
+import com.alibaba.cloud.ai.graph.state.AgentState;
 import com.alibaba.cloud.ai.model.workflow.NodeData;
+import com.alibaba.cloud.ai.service.run.workflow.WorkflowState;
 
 import java.util.Map;
 
 /**
- * NodeDataConverter defined the mutual conversion between specific DSL data and
- * {@link NodeData}
+ * NodeDataBridger defined the mutual conversion between specific DSL, NodeAction and {@link NodeData}
+ *
  */
 public interface NodeDataConverter {
 
@@ -30,5 +33,13 @@ public interface NodeDataConverter {
 	 * @return converted DSL data
 	 */
 	Map<String, Object> dumpDifyData(NodeData nodeData);
+
+	/**
+	 * Construct {@link NodeAction} using {@link NodeData}
+	 * @param nodeData {@link NodeData}
+	 * @return {@link NodeAction}
+	 */
+	NodeAction<WorkflowState> constructNodeAction(NodeData nodeData);
+
 
 }

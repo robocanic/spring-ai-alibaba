@@ -12,6 +12,7 @@ import lombok.experimental.Accessors;
 @AllArgsConstructor
 public class VariableSelector {
 
+	public static final String DEFAULT_SEPARATOR = ".";
 	/**
 	 * An isolation domain of the variable, Could be the node id.
 	 */
@@ -35,6 +36,10 @@ public class VariableSelector {
 	public VariableSelector(String namespace, String name) {
 		this.namespace = namespace;
 		this.name = name;
+	}
+
+	public String variableKey(){
+		return namespace + DEFAULT_SEPARATOR + name;
 	}
 
 }

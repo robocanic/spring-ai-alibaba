@@ -2,24 +2,24 @@ package com.alibaba.cloud.ai.model;
 
 public enum VariableType {
 
-	STRING("STRING", String.class, "string"),
+	STRING("STRING", String.class, "string", ""),
 
-	NUMBER("NUMBER", Number.class, "number"),
+	NUMBER("NUMBER", Number.class, "number", ""),
 
-	BOOLEAN("BOOLEAN", Boolean.class, "not supported"),
+	BOOLEAN("BOOLEAN", Boolean.class, "not supported", false),
 
-	OBJECT("OBJECT", Object.class, "object"),
+	OBJECT("OBJECT", Object.class, "object", new Object()),
 
 	// FIXME find appropriate type
-	FILE("FILE", Object.class, "file"),
+	FILE("FILE", Object.class, "file", new Object[]{}),
 
-	ARRAY_STRING("ARRAY_STRING", String[].class, "array[string]"),
+	ARRAY_STRING("ARRAY_STRING", String[].class, "array[string]", new String[]{}),
 
-	ARRAY_NUMBER("ARRAY_NUMBER", Number[].class, "array[number]"),
+	ARRAY_NUMBER("ARRAY_NUMBER", Number[].class, "array[number]", new Integer[]{}),
 
-	ARRAY_OBJECT("ARRAY_OBJECT", Object[].class, "array[object]"),
+	ARRAY_OBJECT("ARRAY_OBJECT", Object[].class, "array[object]", new Object[]{}),
 
-	ARRAY_FILE("ARRAY_FILE", Object[].class, "file-list");
+	ARRAY_FILE("ARRAY_FILE", Object[].class, "file-list", new Object(){});
 
 	private String value;
 
@@ -27,10 +27,13 @@ public enum VariableType {
 
 	private String difyValue;
 
-	VariableType(String value, Class clazz, String difyValue) {
+	private Object preset;
+
+	VariableType(String value, Class clazz, String difyValue, Object preset) {
 		this.value = value;
 		this.clazz = clazz;
 		this.difyValue = difyValue;
+		this.preset = preset;
 	}
 
 	public String value() {

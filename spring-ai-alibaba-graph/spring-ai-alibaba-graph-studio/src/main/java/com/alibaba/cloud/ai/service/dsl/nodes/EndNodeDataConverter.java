@@ -1,10 +1,12 @@
 package com.alibaba.cloud.ai.service.dsl.nodes;
 
+import com.alibaba.cloud.ai.graph.action.NodeAction;
 import com.alibaba.cloud.ai.model.VariableSelector;
 import com.alibaba.cloud.ai.model.workflow.NodeData;
 import com.alibaba.cloud.ai.model.workflow.NodeType;
 import com.alibaba.cloud.ai.model.workflow.nodedata.EndNodeData;
 import com.alibaba.cloud.ai.service.dsl.NodeDataConverter;
+import com.alibaba.cloud.ai.service.run.workflow.WorkflowState;
 import org.springframework.stereotype.Component;
 
 import java.util.HashMap;
@@ -41,6 +43,11 @@ public class EndNodeDataConverter implements NodeDataConverter {
 			.toList();
 		data.put("outputs", outputsMap);
 		return data;
+	}
+
+	@Override
+	public NodeAction<WorkflowState> constructNodeAction(NodeData nodeData) {
+		return null;
 	}
 
 }

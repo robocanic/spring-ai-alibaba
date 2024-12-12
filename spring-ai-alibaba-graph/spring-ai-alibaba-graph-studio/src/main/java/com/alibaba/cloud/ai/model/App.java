@@ -1,6 +1,7 @@
 package com.alibaba.cloud.ai.model;
 
-import com.alibaba.cloud.ai.service.runner.RunnableModel;
+import com.alibaba.cloud.ai.service.run.RunnableModel;
+import com.alibaba.cloud.ai.service.run.RunnableType;
 import lombok.Data;
 
 /**
@@ -23,8 +24,13 @@ public class App implements RunnableModel {
 	}
 
 	@Override
-	public String getId() {
+	public String id() {
 		return metadata.getId();
+	}
+
+	@Override
+	public String runnerType() {
+		return RunnableType.valueOf(metadata.getMode()).value();
 	}
 
 }

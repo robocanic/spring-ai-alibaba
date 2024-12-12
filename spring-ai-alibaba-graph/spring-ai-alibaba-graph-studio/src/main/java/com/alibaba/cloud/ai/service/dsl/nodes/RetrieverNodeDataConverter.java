@@ -1,10 +1,12 @@
 package com.alibaba.cloud.ai.service.dsl.nodes;
 
+import com.alibaba.cloud.ai.graph.action.NodeAction;
 import com.alibaba.cloud.ai.model.VariableSelector;
 import com.alibaba.cloud.ai.model.workflow.NodeData;
 import com.alibaba.cloud.ai.model.workflow.NodeType;
 import com.alibaba.cloud.ai.model.workflow.nodedata.RetrieverNodeData;
 import com.alibaba.cloud.ai.service.dsl.NodeDataConverter;
+import com.alibaba.cloud.ai.service.run.workflow.WorkflowState;
 import org.springframework.stereotype.Component;
 
 import java.util.HashMap;
@@ -57,6 +59,11 @@ public class RetrieverNodeDataConverter implements NodeDataConverter {
 				retrieverNodeData.getInputs().get(0).getName()));
 		data.put("retrieval_mode", "multiple");
 		return data;
+	}
+
+	@Override
+	public NodeAction<WorkflowState> constructNodeAction(NodeData nodeData) {
+		return null;
 	}
 
 }

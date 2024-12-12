@@ -1,6 +1,7 @@
 package com.alibaba.cloud.ai.model.workflow;
 
-import com.alibaba.cloud.ai.service.runner.RunnableModel;
+import com.alibaba.cloud.ai.service.run.RunnableModel;
+import com.alibaba.cloud.ai.service.run.RunnableType;
 import lombok.Data;
 import lombok.experimental.Accessors;
 
@@ -36,6 +37,16 @@ public class Node implements RunnableModel {
 	private String targetPosition;
 
 	private NodeData data;
+
+	@Override
+	public String id() {
+		return this.id;
+	}
+
+	@Override
+	public String runnerType() {
+		return RunnableType.NODE.value();
+	}
 
 	@Data
 	public static class Coordinate {

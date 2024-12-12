@@ -13,7 +13,7 @@ public class Variable {
 
 	private String name;
 
-	private String value;
+	private Object value;
 
 	private String valueType;
 

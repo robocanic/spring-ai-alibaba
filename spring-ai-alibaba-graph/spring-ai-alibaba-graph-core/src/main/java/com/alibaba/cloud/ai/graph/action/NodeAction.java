@@ -1,5 +1,6 @@
 package com.alibaba.cloud.ai.graph.action;
 
+import com.alibaba.cloud.ai.graph.NodeAttributes;
 import com.alibaba.cloud.ai.graph.state.AgentState;
 
 import java.util.Map;
@@ -8,5 +9,9 @@ import java.util.Map;
 public interface NodeAction<T extends AgentState> {
 
 	Map<String, Object> apply(T t) throws Exception;
+
+	default NodeAttributes getNodeAttributes() {
+		return NodeAttributes.EMPTY;
+	}
 
 }

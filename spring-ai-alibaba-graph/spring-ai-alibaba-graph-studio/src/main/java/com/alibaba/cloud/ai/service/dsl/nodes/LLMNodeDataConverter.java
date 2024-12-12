@@ -1,10 +1,12 @@
 package com.alibaba.cloud.ai.service.dsl.nodes;
 
+import com.alibaba.cloud.ai.graph.action.NodeAction;
 import com.alibaba.cloud.ai.model.VariableSelector;
 import com.alibaba.cloud.ai.model.workflow.NodeData;
 import com.alibaba.cloud.ai.model.workflow.NodeType;
 import com.alibaba.cloud.ai.model.workflow.nodedata.LLMNodeData;
 import com.alibaba.cloud.ai.service.dsl.NodeDataConverter;
+import com.alibaba.cloud.ai.service.run.workflow.WorkflowState;
 import com.alibaba.cloud.ai.utils.StringTemplateUtil;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.DeserializationFeature;
@@ -120,6 +122,11 @@ public class LLMNodeDataConverter implements NodeDataConverter {
 		}).toList();
 		data.put("prompt_template", difyTmplList);
 		return data;
+	}
+
+	@Override
+	public NodeAction<WorkflowState> constructNodeAction(NodeData nodeData) {
+		return null;
 	}
 
 }

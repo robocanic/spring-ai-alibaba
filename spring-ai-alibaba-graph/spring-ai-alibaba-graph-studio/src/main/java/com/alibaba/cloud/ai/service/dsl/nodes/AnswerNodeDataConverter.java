@@ -1,10 +1,12 @@
 package com.alibaba.cloud.ai.service.dsl.nodes;
 
+import com.alibaba.cloud.ai.graph.action.NodeAction;
 import com.alibaba.cloud.ai.model.VariableSelector;
 import com.alibaba.cloud.ai.model.workflow.NodeData;
 import com.alibaba.cloud.ai.model.workflow.NodeType;
 import com.alibaba.cloud.ai.model.workflow.nodedata.AnswerNodeData;
 import com.alibaba.cloud.ai.service.dsl.NodeDataConverter;
+import com.alibaba.cloud.ai.service.run.workflow.WorkflowState;
 import com.alibaba.cloud.ai.utils.StringTemplateUtil;
 import org.springframework.stereotype.Component;
 
@@ -40,6 +42,11 @@ public class AnswerNodeDataConverter implements NodeDataConverter {
 		String difyTmpl = StringTemplateUtil.toDifyTmpl(answerNodeData.getAnswer());
 		data.put("answer", difyTmpl);
 		return data;
+	}
+
+	@Override
+	public NodeAction<WorkflowState> constructNodeAction(NodeData nodeData) {
+		return null;
 	}
 
 }

@@ -1,11 +1,13 @@
 package com.alibaba.cloud.ai.service.dsl.nodes;
 
+import com.alibaba.cloud.ai.graph.action.NodeAction;
 import com.alibaba.cloud.ai.model.Variable;
 import com.alibaba.cloud.ai.model.VariableType;
 import com.alibaba.cloud.ai.model.workflow.NodeData;
 import com.alibaba.cloud.ai.model.workflow.NodeType;
 import com.alibaba.cloud.ai.model.workflow.nodedata.StartNodeData;
 import com.alibaba.cloud.ai.service.dsl.NodeDataConverter;
+import com.alibaba.cloud.ai.service.run.workflow.WorkflowState;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
@@ -62,6 +64,11 @@ public class StartNodeDataConverter implements NodeDataConverter {
 		Map<String, Object> data = new HashMap<>();
 		data.put("variables", objectMapper.convertValue(startNodeData.getStartInputs(), List.class));
 		return data;
+	}
+
+	@Override
+	public NodeAction<WorkflowState> constructNodeAction(NodeData nodeData) {
+		return null;
 	}
 
 }
