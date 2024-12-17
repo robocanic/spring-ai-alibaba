@@ -3,12 +3,16 @@ package com.alibaba.cloud.ai.service.run.workflow;
 
 import com.alibaba.cloud.ai.exception.NotImplementedException;
 import com.alibaba.cloud.ai.exception.RunFailedException;
+import com.alibaba.cloud.ai.graph.CompileConfig;
 import com.alibaba.cloud.ai.graph.CompiledGraph;
 import com.alibaba.cloud.ai.graph.GraphStateException;
 import com.alibaba.cloud.ai.graph.StateGraph;
 import com.alibaba.cloud.ai.graph.action.AsyncEdgeAction;
 import com.alibaba.cloud.ai.graph.action.AsyncNodeAction;
 import com.alibaba.cloud.ai.graph.action.NodeAction;
+import com.alibaba.cloud.ai.graph.checkpoint.config.SaverConfig;
+import com.alibaba.cloud.ai.graph.checkpoint.constant.SaverConstant;
+import com.alibaba.cloud.ai.graph.checkpoint.savers.MemorySaver;
 import com.alibaba.cloud.ai.model.App;
 import com.alibaba.cloud.ai.model.workflow.*;
 import com.alibaba.cloud.ai.service.dsl.NodeDataConverter;
@@ -34,9 +38,9 @@ public class WorkflowRunnableBuilder implements RunnableBuilder<App> {
         return RunnableType.WORKFLOW.value().equals(runnableType);
     }
 
+    // TODO runnable cache
     @Override
-    public Runnable build(App runnableModel, Map<String, Object> inputs) {
-        String appId = runnableModel.id();
+    public Runnable build(App runnableModel, String runId, Map<String, Object> rawInputs) throws Exception{
         Workflow workflow = (Workflow) runnableModel.getSpec();
         // nodeId -> node
         Map<String, Node> nodeMap = workflow.getGraph().getNodes().stream().collect(Collectors.toMap(Node::getId, node -> node));
@@ -51,22 +55,22 @@ public class WorkflowRunnableBuilder implements RunnableBuilder<App> {
                 edgeMap.put(edge.getSource(), edgeList);
             }
         }
-        CompiledGraph<WorkflowState> compiledGraph;
-
-        try {
-            StateGraph<WorkflowState> stateGraph = buildGraph(nodeMap, edgeMap);
-            compiledGraph = stateGraph.compile();
-        } catch (GraphStateException e) {
-            throw new RunFailedException("Graph build error" + e.getMessage(), e);
-        }
-        return new WorkflowRunnable(compiledGraph);
+        // build graph
+        StateGraph<WorkflowState> stateGraph = buildGraph(nodeMap, edgeMap);
+        CompileConfig compileConfig = CompileConfig.builder().saverConfig(
+                SaverConfig.builder().register(SaverConstant.MEMORY, new MemorySaver()).build()
+        ).build();
+        CompiledGraph<WorkflowState> compiledGraph = stateGraph.compile(compileConfig);
+        // build graph inputs
+        Map<String, Object> inputs = buildInputs(rawInputs, runnableModel, runId);
+        return new WorkflowRunnable(compiledGraph, inputs);
     }
 
-    private NodeDataConverter getNodeDataConverter(String nodeType){
-        return nodeDataConverters.stream()
-                .filter(nodeDataConverter -> nodeDataConverter.supportType(nodeType))
-                .findFirst()
-                .orElseThrow(()->new NotImplementedException(nodeType + "is not supported yet"));
+    private Map<String, Object> buildInputs(Map<String, Object> rawInputs, App app, String runId){
+        Map<String, Object> inputs = new HashMap<>(rawInputs);
+        rawInputs.put(WorkflowState.WORKFLOW_ID, app.id());
+        rawInputs.put(WorkflowState.RUN_ID, runId);
+        return inputs;
     }
 
     private StateGraph<WorkflowState> buildGraph(Map<String, Node> nodeMap, Map<String, List<Edge>> edgeMap) throws GraphStateException{
@@ -101,17 +105,24 @@ public class WorkflowRunnableBuilder implements RunnableBuilder<App> {
         return nodeActionMap;
     }
 
+    private NodeDataConverter getNodeDataConverter(String nodeType){
+        return nodeDataConverters.stream()
+                .filter(nodeDataConverter -> nodeDataConverter.supportType(nodeType))
+                .findFirst()
+                .orElseThrow(()->new NotImplementedException(nodeType + "is not supported yet"));
+    }
+
     // TODO parallel mode support
     private void connectNodes(Node current, Map<String, Node> nodeMap, Map<String, List<Edge>> edgeMap, StateGraph<WorkflowState> graph) throws GraphStateException{
         if (current.getType().equals(NodeType.END.value()) || !edgeMap.containsKey(current.getId())){
             return;
         }
-        // need to remove node
+        // remove edge to avoid cycle connect
         List<Edge> edgeList = edgeMap.remove(current.getId());
         if (edgeList == null || edgeList.isEmpty()){
             return;
         }
-        Edge edge = edgeList.getFirst();
+        Edge edge = edgeList.get(0);
         if (edge.getType().equals(EdgeType.DIRECT.value())){
             Node next = nodeMap.get(edge.getTarget());
             graph.addEdge(current.getId(), next.getId());

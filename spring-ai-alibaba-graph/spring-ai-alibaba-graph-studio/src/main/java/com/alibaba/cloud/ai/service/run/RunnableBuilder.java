@@ -6,6 +6,6 @@ public interface RunnableBuilder<T> {
 
     Boolean support(String runnableType);
 
-    Runnable build(T runnableModel, Map<String, Object> inputs);
+    Runnable build(T runnableModel, String runId, Map<String, Object> rawInputs) throws Exception;
 
 }

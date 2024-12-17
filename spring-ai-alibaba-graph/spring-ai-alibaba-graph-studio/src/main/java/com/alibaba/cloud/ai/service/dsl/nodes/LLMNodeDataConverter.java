@@ -1,6 +1,7 @@
 package com.alibaba.cloud.ai.service.dsl.nodes;
 
 import com.alibaba.cloud.ai.graph.action.NodeAction;
+import com.alibaba.cloud.ai.graph.node.llm.LLMNodeAction;
 import com.alibaba.cloud.ai.model.VariableSelector;
 import com.alibaba.cloud.ai.model.workflow.NodeData;
 import com.alibaba.cloud.ai.model.workflow.NodeType;
@@ -12,6 +13,10 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
+import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.ai.chat.prompt.AssistantPromptTemplate;
+import org.springframework.ai.chat.prompt.PromptTemplate;
+import org.springframework.ai.chat.prompt.SystemPromptTemplate;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -21,6 +26,12 @@ import java.util.Map;
 
 @Component
 public class LLMNodeDataConverter implements NodeDataConverter {
+
+	private final ChatModel chatModel;
+
+	public LLMNodeDataConverter(ChatModel chatModel){
+		this.chatModel = chatModel;
+	}
 
 	@Override
 	public Boolean supportType(String nodeType) {
@@ -124,9 +135,22 @@ public class LLMNodeDataConverter implements NodeDataConverter {
 		return data;
 	}
 
+	// TODO
+	//  1. replace autowired chatModel into chat model factory method
+	//  2. add memory support
 	@Override
 	public NodeAction<WorkflowState> constructNodeAction(NodeData nodeData) {
-		return null;
+		LLMNodeData llmNodeData = (LLMNodeData) nodeData;
+		LLMNodeAction.Builder builder = LLMNodeAction.builder(chatModel);
+		List<LLMNodeData.PromptTemplate> promptTemplates = llmNodeData.getPromptTemplate();
+		List<PromptTemplate> promptTmpls = promptTemplates.stream().map(tmpl -> switch (tmpl.getRole()) {
+			case "system" -> new SystemPromptTemplate(tmpl.getText());
+			case "user" -> new PromptTemplate(tmpl.getText());
+			case "assistant" -> new AssistantPromptTemplate(tmpl.getText());
+			default -> throw new IllegalArgumentException("Unsupported role in prompt template:" + tmpl.getRole());
+		}).toList();
+		builder.withPromptTemplates(promptTmpls);
+		return builder.build();
 	}
 
 }

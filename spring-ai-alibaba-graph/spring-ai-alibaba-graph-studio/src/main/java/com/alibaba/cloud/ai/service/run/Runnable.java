@@ -7,8 +7,8 @@ import java.util.Map;
 
 public interface Runnable {
 
-    RunEvent invoke(Map<String, Object> inputs);
+    RunEvent invoke() throws Exception;
 
-    Flux<RunEvent> stream(Map<String, Object> outputs);
+    Flux<RunEvent> stream() throws Exception;
 
 }
