@@ -30,7 +30,7 @@ public class App implements RunnableModel {
 
 	@Override
 	public String runnerType() {
-		return RunnableType.valueOf(metadata.getMode()).value();
+		return RunnableType.fromValue(metadata.getMode()).value();
 	}
 
 }

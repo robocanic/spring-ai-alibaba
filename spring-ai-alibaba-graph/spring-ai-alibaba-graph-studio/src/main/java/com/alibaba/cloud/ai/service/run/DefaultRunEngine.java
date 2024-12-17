@@ -54,7 +54,7 @@ public class DefaultRunEngine<T extends RunnableModel> implements Runner<T> {
         try {
             runnable = builder.build(runnerModel, runId, inputs);
         }catch (Exception e) {
-            throw new RunFailedException("Graph build error" + e.getMessage(), e);
+            throw new RunFailedException("Graph build error: " + e.getMessage(), e);
         }
         Flux<RunEvent> builtFlux = Flux.just(new RunEvent(RunEvent.EventType.RUNNABLE_BUILT.value())
                 .setRunId(runId).setRunnableId(runnerModel.id()));
@@ -64,7 +64,7 @@ public class DefaultRunEngine<T extends RunnableModel> implements Runner<T> {
         try {
             runEventFlux = runnable.stream().map(runEvent -> runEvent.setRunId(runId).setRunnableId(runnerModel.id()));
         }catch (Exception e){
-            throw new RunFailedException("Graph run error" + e.getMessage(), e);
+            throw new RunFailedException("Graph run error: " + e.getMessage(), e);
         }
         Flux<RunEvent> finisedFlux = Flux.just(new RunEvent(RunEvent.EventType.RUNNABLE_FINISHED.value())
                 .setRunId(runId).setRunnableId(runnerModel.id()));

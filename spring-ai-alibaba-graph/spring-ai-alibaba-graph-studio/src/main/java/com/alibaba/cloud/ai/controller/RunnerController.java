@@ -6,7 +6,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("graph-studio/run")
+@RequestMapping("graph-studio/api/run")
 public class RunnerController implements RunnerAPI {
 
 
