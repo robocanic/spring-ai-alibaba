@@ -139,7 +139,7 @@ public class LLMNodeDataConverter implements NodeDataConverter {
 	//  1. replace autowired chatModel into chat model factory method
 	//  2. add memory support
 	@Override
-	public NodeAction<WorkflowState> constructNodeAction(NodeData nodeData) {
+	public NodeAction<WorkflowState> constructNodeAction(String nodeId, NodeData nodeData) {
 		LLMNodeData llmNodeData = (LLMNodeData) nodeData;
 		LLMNodeAction.Builder builder = LLMNodeAction.builder(chatModel);
 		List<LLMNodeData.PromptTemplate> promptTemplates = llmNodeData.getPromptTemplate();
@@ -149,7 +149,13 @@ public class LLMNodeDataConverter implements NodeDataConverter {
 			case "assistant" -> new AssistantPromptTemplate(tmpl.getText());
 			default -> throw new IllegalArgumentException("Unsupported role in prompt template:" + tmpl.getRole());
 		}).toList();
-		builder.withPromptTemplates(promptTmpls);
+		String[] inputKeys = nodeData.getInputs().stream()
+				.map(VariableSelector::variableKey)
+				.toArray(String[]::new);
+		String[] outputKeys = nodeData.getOutputs().stream()
+				.map(output -> VariableSelector.variableKey(nodeId, output.getName()))
+				.toArray(String[]::new);
+		builder.withPromptTemplates(promptTmpls).withInputKey(inputKeys).withOutputKey(outputKeys);
 		return builder.build();
 	}
 

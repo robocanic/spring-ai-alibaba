@@ -45,7 +45,7 @@ public class AnswerNodeDataConverter implements NodeDataConverter {
 	}
 
 	@Override
-	public NodeAction<WorkflowState> constructNodeAction(NodeData nodeData) {
+	public NodeAction<WorkflowState> constructNodeAction(String nodeId, NodeData nodeData) {
 		return null;
 	}
 

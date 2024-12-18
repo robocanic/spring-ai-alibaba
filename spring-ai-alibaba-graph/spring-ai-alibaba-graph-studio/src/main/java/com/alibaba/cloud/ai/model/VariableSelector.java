@@ -42,4 +42,8 @@ public class VariableSelector {
 		return namespace + DEFAULT_SEPARATOR + name;
 	}
 
+	public static String variableKey(String namespace, String name){
+		return namespace + DEFAULT_SEPARATOR + name;
+	}
+
 }

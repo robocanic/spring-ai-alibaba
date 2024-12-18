@@ -6,6 +6,7 @@ import com.alibaba.cloud.ai.model.workflow.NodeData;
 import com.alibaba.cloud.ai.model.workflow.NodeType;
 import com.alibaba.cloud.ai.model.workflow.nodedata.EndNodeData;
 import com.alibaba.cloud.ai.service.dsl.NodeDataConverter;
+import com.alibaba.cloud.ai.service.run.workflow.EndNodeAction;
 import com.alibaba.cloud.ai.service.run.workflow.WorkflowState;
 import org.springframework.stereotype.Component;
 
@@ -46,8 +47,8 @@ public class EndNodeDataConverter implements NodeDataConverter {
 	}
 
 	@Override
-	public NodeAction<WorkflowState> constructNodeAction(NodeData nodeData) {
-		return null;
+	public NodeAction<WorkflowState> constructNodeAction(String nodeId, NodeData nodeData) {
+		return new EndNodeAction<>(nodeId, nodeData);
 	}
 
 }

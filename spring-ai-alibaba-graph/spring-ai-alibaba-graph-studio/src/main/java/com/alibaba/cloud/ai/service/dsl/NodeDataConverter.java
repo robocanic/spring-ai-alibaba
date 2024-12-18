@@ -39,7 +39,7 @@ public interface NodeDataConverter {
 	 * @param nodeData {@link NodeData}
 	 * @return {@link NodeAction}
 	 */
-	NodeAction<WorkflowState> constructNodeAction(NodeData nodeData);
+	NodeAction<WorkflowState> constructNodeAction(String nodeId, NodeData nodeData);
 
 
 }

@@ -111,7 +111,7 @@ public class LLMNodeAction<State extends AgentState> extends AbstractNode implem
 
 
     @Override
-    public NodeActionDescriptor getNodeAttributes() {
+    public NodeActionDescriptor getNodeDescriptor() {
         return nodeActionDescriptor;
     }
 

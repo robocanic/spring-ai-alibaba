@@ -4,6 +4,6 @@ spring:
 
   ai:
     dashscope:
-      api-key: ${AI_DASH_SCOPE_API_KEY}
+      api-key: sk-ec5a3fdc7796473a8c96e87b00b03453
 server:
   port: 8080

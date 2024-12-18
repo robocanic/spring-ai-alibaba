@@ -63,7 +63,7 @@ public class CodeNodeDataConverter implements NodeDataConverter {
 
 	// TODO implement
 	@Override
-	public NodeAction<WorkflowState> constructNodeAction(NodeData nodeData) {
+	public NodeAction<WorkflowState> constructNodeAction(String nodeId, NodeData nodeData) {
 		CodeNodeData codeNodeData = (CodeNodeData) nodeData;
 		return null;
 	}

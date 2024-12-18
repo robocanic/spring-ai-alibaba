@@ -80,7 +80,10 @@ public class WorkflowRunnableBuilder implements RunnableBuilder<App> {
             graph.addNode(entry.getKey(), AsyncNodeAction.node_async(entry.getValue()));
         }
         Node startNode = findStart(nodeMap.values());
+        graph.addEdge(StateGraph.START, startNode.getId());
         connectNodes(startNode, nodeMap, edgeMap, graph);
+        Node endNode = findEnd(nodeMap.values());
+        graph.addEdge(endNode.getId(), StateGraph.END);
         return graph;
     }
 
@@ -89,17 +92,24 @@ public class WorkflowRunnableBuilder implements RunnableBuilder<App> {
                 .findFirst().orElseThrow(() -> new RuntimeException("No start node found"));
     }
 
+    private Node findEnd(Collection<Node> nodes){
+        return nodes.stream()
+                .filter(node -> node.getType().equals(NodeType.END.value()) || node.getType().equals(NodeType.ANSWER.value()))
+                .findFirst()
+                .orElseThrow(() -> new RuntimeException("No end node found"));
+    }
+
     private Map<String, NodeAction<WorkflowState>> constructNodeActions(Map<String, Node> nodeMap){
         Map<String, NodeAction<WorkflowState>> nodeActionMap = new HashMap<>();
         for (Map.Entry<String, Node> entry : nodeMap.entrySet()) {
             Node node = entry.getValue();
             String nodeType = node.getType();
             // skip start and node convert
-            if (nodeType.equals(NodeType.START.value()) || nodeType.equals(NodeType.END.value())){
-                continue;
-            }
+//            if (nodeType.equals(NodeType.START.value()) || nodeType.equals(NodeType.END.value())){
+//                continue;
+//            }
             NodeDataConverter nodeDataConverter = getNodeDataConverter(node.getType());
-            NodeAction<WorkflowState> nodeAction = nodeDataConverter.constructNodeAction(node.getData());
+            NodeAction<WorkflowState> nodeAction = nodeDataConverter.constructNodeAction(node.getId(), node.getData());
             nodeActionMap.put(entry.getKey(), nodeAction);
         }
         return nodeActionMap;
@@ -136,6 +146,7 @@ public class WorkflowRunnableBuilder implements RunnableBuilder<App> {
             }
         }
     }
+
 
 
 

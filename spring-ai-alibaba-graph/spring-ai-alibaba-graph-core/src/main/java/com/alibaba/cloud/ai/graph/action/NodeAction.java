@@ -10,7 +10,7 @@ public interface NodeAction<T extends AgentState> {
 
 	Map<String, Object> apply(T t) throws Exception;
 
-	default NodeActionDescriptor getNodeAttributes(){
+	default NodeActionDescriptor getNodeDescriptor(){
 		return NodeActionDescriptor.EMPTY;
 	}
 
