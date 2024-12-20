@@ -13,6 +13,7 @@ import com.alibaba.cloud.ai.graph.action.NodeAction;
 import com.alibaba.cloud.ai.graph.checkpoint.config.SaverConfig;
 import com.alibaba.cloud.ai.graph.checkpoint.constant.SaverConstant;
 import com.alibaba.cloud.ai.graph.checkpoint.savers.MemorySaver;
+import com.alibaba.cloud.ai.graph.serializer.agent.JSONStateSerializer;
 import com.alibaba.cloud.ai.model.App;
 import com.alibaba.cloud.ai.model.workflow.*;
 import com.alibaba.cloud.ai.service.dsl.NodeDataConverter;
@@ -26,6 +27,14 @@ import java.util.stream.Collectors;
 
 @Component
 public class WorkflowRunnableBuilder implements RunnableBuilder<App> {
+
+    private static final String SEPARATOR = ".";
+
+    public final String WORKFLOW_ID = stateKey(NamespaceType.SYS.value(), "workflowId");
+
+    public final String RUN_ID = stateKey(NamespaceType.SYS.value(), "runId");
+
+    public final String MESSAGES = stateKey(NamespaceType.WORKFLOW.value(), "messages");
 
     private List<NodeDataConverter> nodeDataConverters;
 
@@ -56,11 +65,11 @@ public class WorkflowRunnableBuilder implements RunnableBuilder<App> {
             }
         }
         // build graph
-        StateGraph<WorkflowState> stateGraph = buildGraph(nodeMap, edgeMap);
+        StateGraph stateGraph = buildGraph(nodeMap, edgeMap);
         CompileConfig compileConfig = CompileConfig.builder().saverConfig(
                 SaverConfig.builder().register(SaverConstant.MEMORY, new MemorySaver()).build()
         ).build();
-        CompiledGraph<WorkflowState> compiledGraph = stateGraph.compile(compileConfig);
+        CompiledGraph compiledGraph = stateGraph.compile(compileConfig);
         // build graph inputs
         Map<String, Object> inputs = buildInputs(rawInputs, runnableModel, runId);
         return new WorkflowRunnable(compiledGraph, inputs);
@@ -68,15 +77,20 @@ public class WorkflowRunnableBuilder implements RunnableBuilder<App> {
 
     private Map<String, Object> buildInputs(Map<String, Object> rawInputs, App app, String runId){
         Map<String, Object> inputs = new HashMap<>(rawInputs);
-        rawInputs.put(WorkflowState.WORKFLOW_ID, app.id());
-        rawInputs.put(WorkflowState.RUN_ID, runId);
+        rawInputs.put(WORKFLOW_ID, app.id());
+        rawInputs.put(RUN_ID, runId);
         return inputs;
     }
 
-    private StateGraph<WorkflowState> buildGraph(Map<String, Node> nodeMap, Map<String, List<Edge>> edgeMap) throws GraphStateException{
-        StateGraph<WorkflowState> graph = new StateGraph<>(WorkflowState.SCHEMA, new JSONStateSerializer());
-        Map<String, NodeAction<WorkflowState>> nodeActionMap = constructNodeActions(nodeMap);
-        for (Map.Entry<String, NodeAction<WorkflowState>> entry : nodeActionMap.entrySet()) {
+    private String stateKey(String namespace, String name){
+        return namespace + SEPARATOR + name;
+    }
+
+
+    private StateGraph buildGraph(Map<String, Node> nodeMap, Map<String, List<Edge>> edgeMap) throws GraphStateException{
+        StateGraph graph = new StateGraph(new JSONStateSerializer());
+        Map<String, NodeAction> nodeActionMap = constructNodeActions(nodeMap);
+        for (Map.Entry<String, NodeAction> entry : nodeActionMap.entrySet()) {
             graph.addNode(entry.getKey(), AsyncNodeAction.node_async(entry.getValue()));
         }
         Node startNode = findStart(nodeMap.values());
@@ -99,8 +113,8 @@ public class WorkflowRunnableBuilder implements RunnableBuilder<App> {
                 .orElseThrow(() -> new RuntimeException("No end node found"));
     }
 
-    private Map<String, NodeAction<WorkflowState>> constructNodeActions(Map<String, Node> nodeMap){
-        Map<String, NodeAction<WorkflowState>> nodeActionMap = new HashMap<>();
+    private Map<String, NodeAction> constructNodeActions(Map<String, Node> nodeMap){
+        Map<String, NodeAction> nodeActionMap = new HashMap<>();
         for (Map.Entry<String, Node> entry : nodeMap.entrySet()) {
             Node node = entry.getValue();
             String nodeType = node.getType();
@@ -109,7 +123,7 @@ public class WorkflowRunnableBuilder implements RunnableBuilder<App> {
 //                continue;
 //            }
             NodeDataConverter nodeDataConverter = getNodeDataConverter(node.getType());
-            NodeAction<WorkflowState> nodeAction = nodeDataConverter.constructNodeAction(node.getId(), node.getData());
+            NodeAction nodeAction = nodeDataConverter.constructNodeAction(node.getId(), node.getData());
             nodeActionMap.put(entry.getKey(), nodeAction);
         }
         return nodeActionMap;
@@ -123,7 +137,7 @@ public class WorkflowRunnableBuilder implements RunnableBuilder<App> {
     }
 
     // TODO parallel mode support
-    private void connectNodes(Node current, Map<String, Node> nodeMap, Map<String, List<Edge>> edgeMap, StateGraph<WorkflowState> graph) throws GraphStateException{
+    private void connectNodes(Node current, Map<String, Node> nodeMap, Map<String, List<Edge>> edgeMap, StateGraph graph) throws GraphStateException{
         if (current.getType().equals(NodeType.END.value()) || !edgeMap.containsKey(current.getId())){
             return;
         }
@@ -138,7 +152,7 @@ public class WorkflowRunnableBuilder implements RunnableBuilder<App> {
             graph.addEdge(current.getId(), next.getId());
             connectNodes(next, nodeMap, edgeMap, graph);
         }else {
-            ConditionalEdgeAction<WorkflowState> conditionalEdgeAction = new ConditionalEdgeAction<>(edge);
+            ConditionalEdgeAction conditionalEdgeAction = new ConditionalEdgeAction(edge);
             graph.addConditionalEdges(current.getId(), AsyncEdgeAction.edge_async(conditionalEdgeAction), edge.getTargetMap());
             for (String targetNodeId : edge.getTargetMap().values()) {
                 Node next = nodeMap.get(targetNodeId);

@@ -2,16 +2,15 @@ package com.alibaba.cloud.ai.service.run.workflow;
 
 import com.alibaba.cloud.ai.graph.NodeActionDescriptor;
 import com.alibaba.cloud.ai.graph.action.NodeAction;
-import com.alibaba.cloud.ai.graph.state.AgentState;
+import com.alibaba.cloud.ai.graph.state.NodeState;
 import com.alibaba.cloud.ai.model.VariableSelector;
-import com.alibaba.cloud.ai.model.workflow.Node;
 import com.alibaba.cloud.ai.model.workflow.nodedata.StartNodeData;
 
 import java.util.Arrays;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-public class StartNodeAction<State extends AgentState> implements NodeAction<State> {
+public class StartNodeAction implements NodeAction {
 
     private final StartNodeData nodeData;
 
@@ -39,12 +38,12 @@ public class StartNodeAction<State extends AgentState> implements NodeAction<Sta
     }
 
     @Override
-    public Map<String, Object> apply(State state) throws Exception {
+    public Map<String, Object> apply(NodeState state) throws Exception {
         Map<String, Object> partialState = reduceState(state);
         return formattedOutput(partialState);
     }
 
-    private Map<String, Object> reduceState(State state){
+    private Map<String, Object> reduceState(NodeState state){
         if (descriptor.getInputSchema().isEmpty()){
             return state.data();
         }

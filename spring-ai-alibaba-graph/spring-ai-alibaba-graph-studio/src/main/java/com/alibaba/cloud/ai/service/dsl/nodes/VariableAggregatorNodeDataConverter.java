@@ -1,5 +1,7 @@
 package com.alibaba.cloud.ai.service.dsl.nodes;
 
+import com.alibaba.cloud.ai.graph.action.NodeAction;
+import com.alibaba.cloud.ai.model.workflow.NodeData;
 import com.alibaba.cloud.ai.model.workflow.NodeType;
 import com.alibaba.cloud.ai.model.workflow.nodedata.VariableAggregatorNodeData;
 import com.alibaba.cloud.ai.service.dsl.NodeDataConverter;
@@ -59,6 +61,12 @@ public class VariableAggregatorNodeDataConverter implements NodeDataConverter<Va
         result.put("output_type",nodeData.getOutputType());
         result.put("advanced_settings",advancedSettings);
         return result;
+    }
+
+    // TODO implementation
+    @Override
+    public NodeAction constructNodeAction(String nodeId, NodeData nodeData) {
+        return null;
     }
 
 

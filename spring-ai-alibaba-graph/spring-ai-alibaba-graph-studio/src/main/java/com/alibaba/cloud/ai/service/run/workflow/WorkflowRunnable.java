@@ -13,11 +13,11 @@ import java.util.stream.Stream;
 
 public class WorkflowRunnable implements Runnable {
 
-    private final CompiledGraph<WorkflowState> graph;
+    private final CompiledGraph graph;
 
     private final Map<String, Object> inputs;
 
-    public WorkflowRunnable(CompiledGraph<WorkflowState> graph, Map<String, Object> inputs){
+    public WorkflowRunnable(CompiledGraph graph, Map<String, Object> inputs){
         this.graph = graph;
         this.inputs = inputs;
     }
@@ -25,16 +25,15 @@ public class WorkflowRunnable implements Runnable {
 
     @Override
     public RunEvent invoke() throws Exception{
-        Optional<WorkflowState> workflowState = graph.invoke(inputs);
+        graph.invoke(inputs);
         return null;
     }
 
     @Override
     public Flux<RunEvent> stream() throws Exception{
-        AsyncGenerator<NodeOutput<WorkflowState>> generator = graph.stream(inputs);
-
+        AsyncGenerator<NodeOutput> generator = graph.stream(inputs);
         Stream<RunEvent> runEventStream = generator.stream().map(output -> {
-            Map<String, Object> data = Map.of("nodeId", output.node(), "output", output.state());
+            Map<String, Object> data = Map.of("nodeId", output.node(), "output", output.state().data());
             return new RunEvent(RunEvent.EventType.NODE_FINISHED.value())
                     .setData(data);
         });

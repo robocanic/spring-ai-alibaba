@@ -6,7 +6,6 @@ import com.alibaba.cloud.ai.model.workflow.NodeData;
 import com.alibaba.cloud.ai.model.workflow.NodeType;
 import com.alibaba.cloud.ai.model.workflow.nodedata.AnswerNodeData;
 import com.alibaba.cloud.ai.service.dsl.NodeDataConverter;
-import com.alibaba.cloud.ai.service.run.workflow.WorkflowState;
 import com.alibaba.cloud.ai.utils.StringTemplateUtil;
 import org.springframework.stereotype.Component;
 
@@ -14,6 +13,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import static com.alibaba.cloud.ai.model.VariableSelector.DEFAULT_SEPARATOR;
 
 @Component
 public class AnswerNodeDataConverter implements NodeDataConverter<AnswerNodeData> {
@@ -29,7 +30,7 @@ public class AnswerNodeDataConverter implements NodeDataConverter<AnswerNodeData
 		List<String> variables = new ArrayList<>();
 		String tmpl = StringTemplateUtil.fromDifyTmpl(difyTmpl, variables);
 		List<VariableSelector> inputs = variables.stream().map(variable -> {
-			String[] splits = variable.split("\\.", 2);
+			String[] splits = variable.split(DEFAULT_SEPARATOR, 2);
 			return new VariableSelector(splits[0], splits[1]);
 		}).toList();
 		return new AnswerNodeData(inputs, AnswerNodeData.DEFAULT_OUTPUTS).setAnswer(tmpl);
@@ -45,7 +46,7 @@ public class AnswerNodeDataConverter implements NodeDataConverter<AnswerNodeData
 	}
 
 	@Override
-	public NodeAction<WorkflowState> constructNodeAction(String nodeId, NodeData nodeData) {
+	public NodeAction constructNodeAction(String nodeId, NodeData nodeData) {
 		return null;
 	}
 

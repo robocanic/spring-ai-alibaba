@@ -7,7 +7,6 @@ import com.alibaba.cloud.ai.model.workflow.NodeData;
 import com.alibaba.cloud.ai.model.workflow.NodeType;
 import com.alibaba.cloud.ai.model.workflow.nodedata.LLMNodeData;
 import com.alibaba.cloud.ai.service.dsl.NodeDataConverter;
-import com.alibaba.cloud.ai.service.run.workflow.WorkflowState;
 import com.alibaba.cloud.ai.utils.StringTemplateUtil;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.DeserializationFeature;
@@ -23,6 +22,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import static com.alibaba.cloud.ai.model.VariableSelector.DEFAULT_SEPARATOR;
 
 @Component
 public class LLMNodeDataConverter implements NodeDataConverter<LLMNodeData> {
@@ -64,7 +65,7 @@ public class LLMNodeDataConverter implements NodeDataConverter<LLMNodeData> {
 			List<String> variables = new ArrayList<>();
 			String tmpl = StringTemplateUtil.fromDifyTmpl((String) promptTmpl.get("text"), variables);
 			variables.forEach(variable -> {
-				String[] splits = variable.split("\\.", 2);
+				String[] splits = variable.split(DEFAULT_SEPARATOR, 2);
 				inputs.add(new VariableSelector(splits[0], splits[1], "arg"));
 			});
 			String role = promptTmpl.containsKey("role") ? (String) promptTmpl.get("role") : "system";
@@ -138,7 +139,7 @@ public class LLMNodeDataConverter implements NodeDataConverter<LLMNodeData> {
 	//  1. replace autowired chatModel into chat model factory method
 	//  2. add memory support
 	@Override
-	public NodeAction<WorkflowState> constructNodeAction(String nodeId, NodeData nodeData) {
+	public NodeAction constructNodeAction(String nodeId, NodeData nodeData) {
 		LLMNodeData llmNodeData = (LLMNodeData) nodeData;
 		LLMNodeAction.Builder builder = LLMNodeAction.builder(chatModel);
 		List<LLMNodeData.PromptTemplate> promptTemplates = llmNodeData.getPromptTemplate();

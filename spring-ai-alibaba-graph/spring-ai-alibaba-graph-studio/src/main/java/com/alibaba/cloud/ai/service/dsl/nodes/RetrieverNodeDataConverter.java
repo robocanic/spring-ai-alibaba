@@ -6,7 +6,6 @@ import com.alibaba.cloud.ai.model.workflow.NodeData;
 import com.alibaba.cloud.ai.model.workflow.NodeType;
 import com.alibaba.cloud.ai.model.workflow.nodedata.RetrieverNodeData;
 import com.alibaba.cloud.ai.service.dsl.NodeDataConverter;
-import com.alibaba.cloud.ai.service.run.workflow.WorkflowState;
 import org.springframework.stereotype.Component;
 
 import java.util.HashMap;
@@ -61,7 +60,7 @@ public class RetrieverNodeDataConverter implements NodeDataConverter<RetrieverNo
 	}
 
 	@Override
-	public NodeAction<WorkflowState> constructNodeAction(String nodeId, NodeData nodeData) {
+	public NodeAction constructNodeAction(String nodeId, NodeData nodeData) {
 		return null;
 	}
 

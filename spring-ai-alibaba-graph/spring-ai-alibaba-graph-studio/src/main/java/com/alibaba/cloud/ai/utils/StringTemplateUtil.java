@@ -1,8 +1,12 @@
 package com.alibaba.cloud.ai.utils;
 
+import com.alibaba.cloud.ai.model.VariableSelector;
+
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
+import static com.alibaba.cloud.ai.model.VariableSelector.DEFAULT_SEPARATOR;
 
 public class StringTemplateUtil {
 
@@ -18,7 +22,9 @@ public class StringTemplateUtil {
 		Matcher matcher = pattern.matcher(template);
 		StringBuilder result = new StringBuilder();
 		while (matcher.find()) {
-			String variable = matcher.group(1);
+			String matchedText = matcher.group(1);
+			String[] parts = matchedText.split("\\.", 2);
+			String variable = parts[0] + DEFAULT_SEPARATOR + parts[1];
 			variables.add(variable);
 			matcher.appendReplacement(result, "{" + variable + "}");
 		}
@@ -33,7 +39,17 @@ public class StringTemplateUtil {
 	 */
 	public static String toDifyTmpl(String template) {
 		String regex = "\\{(.*?)}";
-		return template.replaceAll(regex, "{{#$1#}}");
+		Pattern pattern = Pattern.compile(regex);
+		Matcher matcher = pattern.matcher(template);
+		StringBuilder result = new StringBuilder();
+		while (matcher.find()){
+			String matchedText = matcher.group(1);
+			String[] parts = matchedText.split(DEFAULT_SEPARATOR, 2);
+			String variable = parts[0] + "." + parts[1];
+			matcher.appendReplacement(result, "{{#" + variable + "#}}");
+		}
+		matcher.appendTail(result);
+		return result.toString();
 	}
 
 }

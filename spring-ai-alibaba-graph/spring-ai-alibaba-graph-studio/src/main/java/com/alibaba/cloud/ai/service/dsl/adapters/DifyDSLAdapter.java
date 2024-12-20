@@ -15,6 +15,7 @@ import com.alibaba.cloud.ai.model.workflow.NodeType;
 import com.alibaba.cloud.ai.service.dsl.Serializer;
 import com.alibaba.cloud.ai.service.dsl.NodeDataConverter;
 import com.alibaba.cloud.ai.service.dsl.AbstractDSLAdapter;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
@@ -257,8 +258,8 @@ public class DifyDSLAdapter extends AbstractDSLAdapter {
 		Map<String, Object> data = new HashMap<>();
 		ObjectMapper objectMapper = new ObjectMapper();
 		objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-		List<Map<String, Object>> workflowVars = objectMapper.convertValue(workflow.getWorkflowVars(), List.class);
-		List<Map<String, Object>> envVars = objectMapper.convertValue(workflow.getEnvVars(), List.class);
+		List<Map<String, Object>> workflowVars = objectMapper.convertValue(workflow.getWorkflowVars(), new TypeReference<>() {});
+		List<Map<String, Object>> envVars = objectMapper.convertValue(workflow.getEnvVars(), new TypeReference<>() {});
 		Graph graph = workflow.getGraph();
 		Map<String, Object> graphMap = deconstructGraph(graph);
 		data.put("workflow",
@@ -285,7 +286,7 @@ public class DifyDSLAdapter extends AbstractDSLAdapter {
 		for (Edge edge : edges) {
 			// collect direct edge
 			if (edge.getType().equals(EdgeType.DIRECT.value())) {
-				Map<String, Object> edgeMap = objectMapper.convertValue(edge, Map.class);
+				Map<String, Object> edgeMap = objectMapper.convertValue(edge, new TypeReference<>() {});
 				edgeMap.put("sourceHandle", "source");
 				edgeMap.put("targetHandle", "target");
 				edgeMap.put("type", "custom");
@@ -324,7 +325,7 @@ public class DifyDSLAdapter extends AbstractDSLAdapter {
 		ObjectMapper objectMapper = new ObjectMapper();
 		objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 		for (Node node : nodes) {
-			Map<String, Object> n = objectMapper.convertValue(node, Map.class);
+			Map<String, Object> n = objectMapper.convertValue(node, new TypeReference<>() {});
 			NodeType nodeType = NodeType.valueOf(node.getType());
 			NodeDataConverter nodeDataConverter = getNodeDataConverter(node.getType());
 			Map<String, Object> nodeData = nodeDataConverter.dumpDifyData(node.getData());

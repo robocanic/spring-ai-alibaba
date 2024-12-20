@@ -1,7 +1,7 @@
 package com.alibaba.cloud.ai.service.run.workflow;
 
 import com.alibaba.cloud.ai.graph.action.EdgeAction;
-import com.alibaba.cloud.ai.graph.state.AgentState;
+import com.alibaba.cloud.ai.graph.state.NodeState;
 import com.alibaba.cloud.ai.model.VariableType;
 import com.alibaba.cloud.ai.model.workflow.Case;
 import com.alibaba.cloud.ai.model.workflow.Edge;
@@ -9,7 +9,7 @@ import com.alibaba.cloud.ai.model.workflow.Edge;
 import java.util.ArrayList;
 import java.util.List;
 
-public class ConditionalEdgeAction<State extends AgentState> implements EdgeAction<State> {
+public class ConditionalEdgeAction implements EdgeAction{
 
     private Edge edge;
 
@@ -19,7 +19,7 @@ public class ConditionalEdgeAction<State extends AgentState> implements EdgeActi
 
 
     @Override
-    public String apply(State state) throws Exception {
+    public String apply(NodeState state) throws Exception {
         for (Case c : edge.getCases()) {
             String logicalOperator = c.getLogicalOperator();
             List<Boolean> conditionAsserts = new ArrayList<>();

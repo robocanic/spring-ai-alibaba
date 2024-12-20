@@ -49,7 +49,7 @@ public class DefaultRunEngine<T extends RunnableModel> implements Runner<T> {
         RunnableBuilder<T> builder = getRunnerBuilder(runnerModel.runnerType());
         Runnable runnable;
         String runId = UUID.randomUUID().toString();
-        Flux<RunEvent> buildingFlux = Flux.just(new RunEvent(RunEvent.EventType.RUNNABLE_BUILT.value())
+        Flux<RunEvent> buildingFlux = Flux.just(new RunEvent(RunEvent.EventType.RUNNABLE_BUILDING.value())
                 .setRunId(runId).setRunnableId(runnerModel.id()));
         try {
             runnable = builder.build(runnerModel, runId, inputs);

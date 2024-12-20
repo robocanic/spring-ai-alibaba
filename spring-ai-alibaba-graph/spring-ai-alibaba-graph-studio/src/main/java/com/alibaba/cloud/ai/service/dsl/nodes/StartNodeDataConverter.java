@@ -8,7 +8,6 @@ import com.alibaba.cloud.ai.model.workflow.NodeType;
 import com.alibaba.cloud.ai.model.workflow.nodedata.StartNodeData;
 import com.alibaba.cloud.ai.service.dsl.NodeDataConverter;
 import com.alibaba.cloud.ai.service.run.workflow.StartNodeAction;
-import com.alibaba.cloud.ai.service.run.workflow.WorkflowState;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
@@ -67,8 +66,8 @@ public class StartNodeDataConverter implements NodeDataConverter<StartNodeData> 
 	}
 
 	@Override
-	public NodeAction<WorkflowState> constructNodeAction(String nodeId, NodeData nodeData) {
-		return new StartNodeAction<>(nodeId, (StartNodeData) nodeData);
+	public NodeAction constructNodeAction(String nodeId, NodeData nodeData) {
+		return new StartNodeAction(nodeId, (StartNodeData) nodeData);
 	}
 
 }

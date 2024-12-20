@@ -1,9 +1,7 @@
 package com.alibaba.cloud.ai.service.dsl;
 
 import com.alibaba.cloud.ai.graph.action.NodeAction;
-import com.alibaba.cloud.ai.graph.state.AgentState;
 import com.alibaba.cloud.ai.model.workflow.NodeData;
-import com.alibaba.cloud.ai.service.run.workflow.WorkflowState;
 
 import java.util.Map;
 
@@ -39,7 +37,7 @@ public interface NodeDataConverter<T extends NodeData> {
 	 * @param nodeData {@link NodeData}
 	 * @return {@link NodeAction}
 	 */
-	NodeAction<WorkflowState> constructNodeAction(String nodeId, NodeData nodeData);
+	NodeAction constructNodeAction(String nodeId, NodeData nodeData);
 
 
 }
