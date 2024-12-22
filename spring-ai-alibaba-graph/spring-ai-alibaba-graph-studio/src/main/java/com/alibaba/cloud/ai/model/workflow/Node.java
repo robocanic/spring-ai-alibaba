@@ -44,8 +44,8 @@ public class Node implements RunnableModel {
 	}
 
 	@Override
-	public String runnerType() {
-		return RunnableType.NODE.value();
+	public RunnableType runnableType() {
+		return RunnableType.NODE;
 	}
 
 	@Data

@@ -4,6 +4,6 @@ public interface RunnableModel {
 
 	String id();
 
-	String runnerType();
+	RunnableType runnableType();
 
 }

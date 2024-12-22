@@ -20,8 +20,8 @@ import java.util.Map;
 public class VariableAggregatorNodeDataConverter implements NodeDataConverter<VariableAggregatorNodeData> {
 
     @Override
-    public Boolean supportType(String nodeType) {
-        return NodeType.AGGREGATOR.value().equals(nodeType);
+    public Boolean supportType(NodeType nodeType) {
+        return NodeType.AGGREGATOR.equals(nodeType);
     }
 
 

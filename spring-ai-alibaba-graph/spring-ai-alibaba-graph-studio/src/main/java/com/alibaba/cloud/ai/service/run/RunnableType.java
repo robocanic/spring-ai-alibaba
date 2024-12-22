@@ -3,6 +3,7 @@ package com.alibaba.cloud.ai.service.run;
 import com.alibaba.cloud.ai.exception.NotImplementedException;
 
 import java.util.Arrays;
+import java.util.Optional;
 
 public enum RunnableType {
 
@@ -18,11 +19,10 @@ public enum RunnableType {
         return value;
     }
 
-    public static RunnableType fromValue(String value){
+    public static Optional<RunnableType> fromValue(String value){
         return Arrays.stream(RunnableType.values())
                 .filter(v -> v.value.equals(value))
-                .findFirst()
-                .orElseThrow(()->new NotImplementedException("Runnable Type" + value + "is not supported yet"));
+                .findFirst();
     }
 
     RunnableType(String value) {

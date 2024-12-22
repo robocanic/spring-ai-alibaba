@@ -35,8 +35,8 @@ public class LLMNodeDataConverter implements NodeDataConverter<LLMNodeData> {
 	}
 
 	@Override
-	public Boolean supportType(String nodeType) {
-		return NodeType.LLM.value().equals(nodeType);
+	public Boolean supportType(NodeType nodeType) {
+		return NodeType.LLM.equals(nodeType);
 	}
 
 	@Override

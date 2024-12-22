@@ -17,8 +17,8 @@ import java.util.Optional;
 public class RetrieverNodeDataConverter implements NodeDataConverter<RetrieverNodeData> {
 
 	@Override
-	public Boolean supportType(String nodeType) {
-		return NodeType.RETRIEVER.value().equals(nodeType);
+	public Boolean supportType(NodeType nodeType) {
+		return NodeType.RETRIEVER.equals(nodeType);
 	}
 
 	@Override

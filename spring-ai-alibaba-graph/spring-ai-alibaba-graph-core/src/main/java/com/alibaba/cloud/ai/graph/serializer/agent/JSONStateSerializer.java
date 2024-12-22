@@ -4,6 +4,7 @@ import com.alibaba.cloud.ai.graph.serializer.plain_text.PlainTextStateSerializer
 import com.alibaba.cloud.ai.graph.state.NodeState;
 import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import com.fasterxml.jackson.annotation.PropertyAccessor;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.module.SimpleModule;
 import lombok.NonNull;
@@ -11,6 +12,7 @@ import lombok.NonNull;
 import java.io.IOException;
 import java.io.ObjectInput;
 import java.io.ObjectOutput;
+import java.util.Map;
 
 public class JSONStateSerializer extends PlainTextStateSerializer {
 
@@ -43,14 +45,15 @@ public class JSONStateSerializer extends PlainTextStateSerializer {
 
 	@Override
 	public void write(NodeState object, ObjectOutput out) throws IOException {
-		var json = objectMapper.writeValueAsString(object);
+		var json = objectMapper.writeValueAsString(object.data());
 		out.writeUTF(json);
 	}
 
 	@Override
 	public NodeState read(ObjectInput in) throws IOException, ClassNotFoundException {
 		var json = in.readUTF();
-		return objectMapper.readValue(json, NodeState.class);
+		Map<String, Object> data =  objectMapper.readValue(json, new TypeReference<>() {});
+		return new NodeState(data);
 	}
 
 }

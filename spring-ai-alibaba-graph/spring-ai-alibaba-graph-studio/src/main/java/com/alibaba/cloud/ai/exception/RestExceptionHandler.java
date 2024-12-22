@@ -61,7 +61,7 @@ public class RestExceptionHandler {
 	@ExceptionHandler(Exception.class)
 	public R<String> exception(Exception e) {
 		log.error("Unknown exception = {}", e.getMessage(), e);
-		return R.error(ReturnCode.RC500.getCode(), ReturnCode.RC500.getMsg());
+		return R.error(ReturnCode.RC500.getCode(), e.getMessage());
 	}
 
 }

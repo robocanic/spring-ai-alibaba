@@ -16,8 +16,8 @@ import java.util.*;
 public class CodeNodeDataConverter implements NodeDataConverter<CodeNodeData> {
 
 	@Override
-	public Boolean supportType(String nodeType) {
-		return NodeType.CODE.value().equals(nodeType);
+	public Boolean supportType(NodeType nodeType) {
+		return NodeType.CODE.equals(nodeType);
 	}
 
 	@Override
@@ -31,8 +31,8 @@ public class CodeNodeDataConverter implements NodeDataConverter<CodeNodeData> {
 		List<Variable> outputs = outputsMap.entrySet().stream().map(entry -> {
 			String varName = entry.getKey();
 			String difyType = (String) entry.getValue().get("type");
-			VariableType varType = Optional.ofNullable(VariableType.difyValueOf(difyType))
-				.orElseThrow(() -> new IllegalArgumentException("Unsupported variable type: " + difyType));
+			VariableType varType = VariableType.fromDifyValue(difyType)
+					.orElseThrow(() -> new IllegalArgumentException("Unsupported variable type: " + difyType));
 			return new Variable(varName, varType.value());
 		}).toList();
 
@@ -53,7 +53,7 @@ public class CodeNodeDataConverter implements NodeDataConverter<CodeNodeData> {
 		Map<String, Object> outputVars = new HashMap<>();
 		nodeData.getOutputs().forEach(variable -> {
 			outputVars.put(variable.getName(),
-					Map.of("type", VariableType.valueOf(variable.getValueType()).difyValue()));
+					Map.of("type", VariableType.fromValue(variable.getValueType()).orElse(VariableType.OBJECT).difyValue()));
 		});
 		data.put("outputs", outputVars);
 		return data;

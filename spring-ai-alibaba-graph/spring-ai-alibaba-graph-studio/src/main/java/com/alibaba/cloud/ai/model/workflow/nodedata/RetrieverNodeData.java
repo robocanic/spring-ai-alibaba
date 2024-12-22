@@ -8,8 +8,10 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.experimental.Accessors;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 @EqualsAndHashCode(callSuper = true)
 @Accessors(chain = true)
@@ -53,13 +55,10 @@ public class RetrieverNodeData extends NodeData {
 			return value;
 		}
 
-		public RetrievalMode difyValueOf(String difyMode) {
-			for (RetrievalMode mode : RetrievalMode.values()) {
-				if (mode.difyValue.equals(difyMode)) {
-					return mode;
-				}
-			}
-			return null;
+		public Optional<RetrievalMode> fromDifyValue(String difyMode) {
+			return Arrays.stream(RetrievalMode.values())
+					.filter(mode -> mode.difyValue.equals(difyMode))
+					.findFirst();
 		}
 
 	}

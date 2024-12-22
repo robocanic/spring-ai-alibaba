@@ -17,8 +17,8 @@ import java.util.Map;
 public class EndNodeDataConverter implements NodeDataConverter<EndNodeData> {
 
 	@Override
-	public Boolean supportType(String nodeType) {
-		return NodeType.END.value().equals(nodeType);
+	public Boolean supportType(NodeType nodeType) {
+		return NodeType.END.equals(nodeType);
 	}
 
 	@Override

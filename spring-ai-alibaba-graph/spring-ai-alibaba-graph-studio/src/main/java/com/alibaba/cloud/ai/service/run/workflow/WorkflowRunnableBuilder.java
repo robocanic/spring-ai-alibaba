@@ -2,7 +2,6 @@ package com.alibaba.cloud.ai.service.run.workflow;
 
 
 import com.alibaba.cloud.ai.exception.NotImplementedException;
-import com.alibaba.cloud.ai.exception.RunFailedException;
 import com.alibaba.cloud.ai.graph.CompileConfig;
 import com.alibaba.cloud.ai.graph.CompiledGraph;
 import com.alibaba.cloud.ai.graph.GraphStateException;
@@ -43,8 +42,8 @@ public class WorkflowRunnableBuilder implements RunnableBuilder<App> {
     }
 
     @Override
-    public Boolean support(String runnableType) {
-        return RunnableType.WORKFLOW.value().equals(runnableType);
+    public Boolean support(RunnableType runnableType) {
+        return RunnableType.WORKFLOW.equals(runnableType);
     }
 
     // TODO runnable cache
@@ -117,19 +116,17 @@ public class WorkflowRunnableBuilder implements RunnableBuilder<App> {
         Map<String, NodeAction> nodeActionMap = new HashMap<>();
         for (Map.Entry<String, Node> entry : nodeMap.entrySet()) {
             Node node = entry.getValue();
-            String nodeType = node.getType();
-            // skip start and node convert
-//            if (nodeType.equals(NodeType.START.value()) || nodeType.equals(NodeType.END.value())){
-//                continue;
-//            }
-            NodeDataConverter nodeDataConverter = getNodeDataConverter(node.getType());
+            NodeType nodeType = NodeType.fromValue(node.getType()).orElseThrow(
+                    ()-> new NotImplementedException("Unsupported NodeType: " + node.getType())
+            );
+            NodeDataConverter nodeDataConverter = getNodeDataConverter(nodeType);
             NodeAction nodeAction = nodeDataConverter.constructNodeAction(node.getId(), node.getData());
             nodeActionMap.put(entry.getKey(), nodeAction);
         }
         return nodeActionMap;
     }
 
-    private NodeDataConverter getNodeDataConverter(String nodeType){
+    private NodeDataConverter getNodeDataConverter(NodeType nodeType){
         return nodeDataConverters.stream()
                 .filter(nodeDataConverter -> nodeDataConverter.supportType(nodeType))
                 .findFirst()
@@ -152,7 +149,7 @@ public class WorkflowRunnableBuilder implements RunnableBuilder<App> {
             graph.addEdge(current.getId(), next.getId());
             connectNodes(next, nodeMap, edgeMap, graph);
         }else {
-            ConditionalEdgeAction conditionalEdgeAction = new ConditionalEdgeAction(edge);
+            ConditionalEdgeAction conditionalEdgeAction = new ConditionalEdgeAction(edge, current.getId());
             graph.addConditionalEdges(current.getId(), AsyncEdgeAction.edge_async(conditionalEdgeAction), edge.getTargetMap());
             for (String targetNodeId : edge.getTargetMap().values()) {
                 Node next = nodeMap.get(targetNodeId);

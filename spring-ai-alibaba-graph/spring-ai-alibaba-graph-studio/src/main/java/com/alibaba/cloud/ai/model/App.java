@@ -1,5 +1,6 @@
 package com.alibaba.cloud.ai.model;
 
+import com.alibaba.cloud.ai.exception.NotImplementedException;
 import com.alibaba.cloud.ai.service.run.RunnableModel;
 import com.alibaba.cloud.ai.service.run.RunnableType;
 import lombok.Data;
@@ -29,8 +30,9 @@ public class App implements RunnableModel {
 	}
 
 	@Override
-	public String runnerType() {
-		return RunnableType.fromValue(metadata.getMode()).value();
+	public RunnableType runnableType() {
+		return RunnableType.fromValue(metadata.getMode())
+				.orElseThrow(()->new NotImplementedException("Unsupported runnable type: " + metadata.getMode()));
 	}
 
 }

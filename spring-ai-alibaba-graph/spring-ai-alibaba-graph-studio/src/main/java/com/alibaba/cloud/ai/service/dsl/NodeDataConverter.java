@@ -2,6 +2,8 @@ package com.alibaba.cloud.ai.service.dsl;
 
 import com.alibaba.cloud.ai.graph.action.NodeAction;
 import com.alibaba.cloud.ai.model.workflow.NodeData;
+import com.alibaba.cloud.ai.model.workflow.Node;
+import com.alibaba.cloud.ai.model.workflow.NodeType;
 
 import java.util.Map;
 
@@ -13,10 +15,10 @@ public interface NodeDataConverter<T extends NodeData> {
 
 	/**
 	 * Judge if this converter support this node type
-	 * @param nodeType {@link com.alibaba.cloud.ai.model.workflow.NodeType} value
+	 * @param nodeType {@link NodeType}
 	 * @return true if support
 	 */
-	Boolean supportType(String nodeType);
+	Boolean supportType(NodeType nodeType);
 
 	/**
 	 * Parse DSL data to NodeData
@@ -35,6 +37,7 @@ public interface NodeDataConverter<T extends NodeData> {
 	/**
 	 * Construct {@link NodeAction} using {@link NodeData}
 	 * @param nodeData {@link NodeData}
+	 * @param nodeId id of the {@link Node}
 	 * @return {@link NodeAction}
 	 */
 	NodeAction constructNodeAction(String nodeId, NodeData nodeData);

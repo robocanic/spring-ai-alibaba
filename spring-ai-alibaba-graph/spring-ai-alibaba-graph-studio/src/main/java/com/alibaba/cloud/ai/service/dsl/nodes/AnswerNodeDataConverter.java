@@ -20,8 +20,8 @@ import static com.alibaba.cloud.ai.model.VariableSelector.DEFAULT_SEPARATOR;
 public class AnswerNodeDataConverter implements NodeDataConverter<AnswerNodeData> {
 
 	@Override
-	public Boolean supportType(String nodeType) {
-		return NodeType.ANSWER.value().equals(nodeType);
+	public Boolean supportType(NodeType nodeType) {
+		return NodeType.ANSWER.equals(nodeType);
 	}
 
 	@Override

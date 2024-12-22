@@ -5,9 +5,7 @@ import com.alibaba.cloud.ai.model.VariableSelector;
 import lombok.Data;
 import lombok.experimental.Accessors;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
 import java.util.function.BiFunction;
 
 /**
@@ -33,13 +31,10 @@ public class Case {
 			return value;
 		}
 
-		public LogicalOperatorType fromValue(String value){
-			for (LogicalOperatorType logicalOperatorType : LogicalOperatorType.values()) {
-				if (Objects.equals(logicalOperatorType.value, value)){
-					return logicalOperatorType;
-				}
-			}
-			throw new NotImplementedException("Unsupported logicalOperator type" + value);
+		public Optional<LogicalOperatorType> fromValue(String value){
+			return Arrays.stream(LogicalOperatorType.values())
+					.filter(logicalOperatorType -> logicalOperatorType.value.equals(value))
+					.findFirst();
 		}
 
 		LogicalOperatorType(String value){
@@ -248,13 +243,10 @@ public class Case {
                     type;
 		}
 
-		public static ComparisonOperatorType fromValue(String value){
-			for (ComparisonOperatorType type : ComparisonOperatorType.values()){
-				if (type.value().equals(value)){
-					return type;
-				}
-			}
-			return null;
+		public static Optional<ComparisonOperatorType> fromValue(String value){
+			return Arrays.stream(ComparisonOperatorType.values())
+					.filter(e->e.value().equals(value))
+					.findFirst();
 		}
 		
 		ComparisonOperatorType(String value, BiFunction<Object, Object, Boolean> assertFunc){

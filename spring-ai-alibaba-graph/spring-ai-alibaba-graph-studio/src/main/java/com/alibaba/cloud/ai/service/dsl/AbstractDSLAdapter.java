@@ -1,7 +1,9 @@
 package com.alibaba.cloud.ai.service.dsl;
 
+import com.alibaba.cloud.ai.exception.NotImplementedException;
 import com.alibaba.cloud.ai.model.App;
 import com.alibaba.cloud.ai.model.AppMetadata;
+import com.alibaba.cloud.ai.model.AppMode;
 import com.alibaba.cloud.ai.model.chatbot.ChatBot;
 import com.alibaba.cloud.ai.model.workflow.Workflow;
 import org.yaml.snakeyaml.DumperOptions;
@@ -26,11 +28,12 @@ public abstract class AbstractDSLAdapter implements DSLAdapter {
 		validateDSLData(data);
 		Map<String, Object> immutableData = Map.copyOf(data);
 		AppMetadata metadata = mapToMetadata(immutableData);
-		Object spec = switch (metadata.getMode()) {
-			case AppMetadata.WORKFLOW_MODE -> mapToWorkflow(immutableData);
-			case AppMetadata.CHATBOT_MODE -> mapToChatBot(immutableData);
-			default -> throw new IllegalArgumentException("unsupported mode: " + metadata.getMode());
-		};
+		AppMode appMode = AppMode.fromValue(metadata.getMode())
+				.orElseThrow(()-> new NotImplementedException("Unsupported AppMode: " + metadata.getMode() ));
+		Object spec = switch (appMode) {
+			case CHATBOT -> mapToChatBot(immutableData);
+			case WORKFLOW -> mapToWorkflow(immutableData);
+        };
 		App app = new App(metadata, spec);
 		log.info("App imported:" + app);
 		return app;
@@ -42,9 +45,11 @@ public abstract class AbstractDSLAdapter implements DSLAdapter {
 		AppMetadata metadata = app.getMetadata();
 		Map<String, Object> metaMap = metadataToMap(metadata);
 		Map<String, Object> specMap;
-		switch (metadata.getMode()) {
-			case AppMetadata.WORKFLOW_MODE -> specMap = workflowToMap((Workflow) app.getSpec());
-			case AppMetadata.CHATBOT_MODE -> specMap = chatbotToMap((ChatBot) app.getSpec());
+		AppMode appMode = AppMode.fromValue(metadata.getMode())
+				.orElseThrow(()-> new NotImplementedException("Unsupported AppMode: " + metadata.getMode() ));
+		switch (appMode) {
+			case WORKFLOW -> specMap = workflowToMap((Workflow) app.getSpec());
+			case CHATBOT -> specMap = chatbotToMap((ChatBot) app.getSpec());
 			default -> throw new IllegalArgumentException("unsupported mode: " + metadata.getMode());
 		}
 		Map<String, Object> data = Stream.concat(metaMap.entrySet().stream(), specMap.entrySet().stream())

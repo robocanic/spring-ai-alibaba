@@ -1,13 +1,17 @@
 package com.alibaba.cloud.ai.controller;
 
 import com.alibaba.cloud.ai.api.GeneratorAPI;
+import com.alibaba.cloud.ai.exception.NotImplementedException;
+import com.alibaba.cloud.ai.model.workflow.NodeType;
 import com.alibaba.cloud.ai.service.dsl.DSLAdapter;
+import com.alibaba.cloud.ai.service.dsl.DSLDialectType;
 import com.alibaba.cloud.ai.service.generator.CodeGenerator;
 import com.alibaba.cloud.ai.service.generator.ProjectGenerator;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.util.Optional;
 
 @RestController
 @RequestMapping("graph-studio/api/generate")
@@ -37,14 +41,16 @@ public class GeneratorController implements GeneratorAPI {
 	@Override
 	public CodeGenerator getCodeGenerator(String nodeType) {
 		return codeGenerators.stream()
-			.filter(generator -> generator.supportNodeType(nodeType))
+			.filter(generator -> generator.supportNodeType(NodeType.fromValue(nodeType).orElse(null)))
 			.findFirst()
 			.orElse(null);
 	}
 
 	@Override
 	public DSLAdapter getDSLAdapter(String dialect) {
-		return dslAdapters.stream().filter(adapter -> adapter.supportDialect(dialect)).findFirst().orElse(null);
+		DSLDialectType dialectType = DSLDialectType.fromValue(dialect)
+				.orElseThrow(()-> new NotImplementedException("Unsupported dsl dialect: " + dialect));
+		return dslAdapters.stream().filter(adapter -> adapter.supportDialect(dialectType)).findFirst().orElse(null);
 	}
 
 }

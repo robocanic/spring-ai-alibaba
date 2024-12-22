@@ -1,15 +1,18 @@
 package com.alibaba.cloud.ai.model.workflow;
 
+import com.alibaba.cloud.ai.exception.NotImplementedException;
+
 import java.util.Arrays;
+import java.util.Optional;
 
 public enum NamespaceType {
-    ENV("ENV", "env"),
+    ENV("env", "env"),
 
-    SYS("SYS", "sys"),
+    SYS("system", "sys"),
 
-    WORKFLOW("WORKFLOW", "conversation"),
+    WORKFLOW("workflow", "conversation"),
 
-    NODE("Node", "node");
+    NODE("node", "node");
 
     private final String value;
 
@@ -23,11 +26,10 @@ public enum NamespaceType {
         return difyValue;
     }
 
-    public static NamespaceType difyValueOf(String difyValue){
-        return Arrays.stream(NamespaceType.values())
+    public static Optional<NamespaceType> fromDifyValue(String difyValue){
+         return Arrays.stream(NamespaceType.values())
                 .filter(n -> n.difyValue.equals(difyValue))
-                .findFirst()
-                .orElse(null);
+                .findFirst();
     }
 
     NamespaceType(String value, String difyValue) {

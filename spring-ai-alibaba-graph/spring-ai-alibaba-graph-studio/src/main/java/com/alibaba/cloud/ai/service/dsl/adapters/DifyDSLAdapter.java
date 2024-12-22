@@ -1,9 +1,6 @@
 package com.alibaba.cloud.ai.service.dsl.adapters;
 
-import com.alibaba.cloud.ai.model.App;
-import com.alibaba.cloud.ai.model.AppMetadata;
-import com.alibaba.cloud.ai.model.Variable;
-import com.alibaba.cloud.ai.model.VariableSelector;
+import com.alibaba.cloud.ai.model.*;
 import com.alibaba.cloud.ai.model.chatbot.ChatBot;
 import com.alibaba.cloud.ai.model.workflow.Workflow;
 import com.alibaba.cloud.ai.model.workflow.Graph;
@@ -12,6 +9,7 @@ import com.alibaba.cloud.ai.model.workflow.Edge;
 import com.alibaba.cloud.ai.model.workflow.EdgeType;
 import com.alibaba.cloud.ai.model.workflow.Node;
 import com.alibaba.cloud.ai.model.workflow.NodeType;
+import com.alibaba.cloud.ai.service.dsl.DSLDialectType;
 import com.alibaba.cloud.ai.service.dsl.Serializer;
 import com.alibaba.cloud.ai.service.dsl.NodeDataConverter;
 import com.alibaba.cloud.ai.service.dsl.AbstractDSLAdapter;
@@ -32,8 +30,6 @@ import java.util.stream.Collectors;
 @Component
 public class DifyDSLAdapter extends AbstractDSLAdapter {
 
-	private static final String DIFY_DIALECT = "dify";
-
 	private static final String[] DIFY_CHATBOT_MODES = { "chat", "completion", "agent-chat" };
 
 	private static final String[] DIFY_WORKFLOW_MODES = { "workflow", "advanced-chat" };
@@ -47,7 +43,7 @@ public class DifyDSLAdapter extends AbstractDSLAdapter {
 		this.serializer = serializer;
 	}
 
-	private NodeDataConverter getNodeDataConverter(String type) {
+	private NodeDataConverter getNodeDataConverter(NodeType type) {
 		return nodeDataConverters.stream()
 			.filter(converter -> converter.supportType(type))
 			.findFirst()
@@ -71,10 +67,10 @@ public class DifyDSLAdapter extends AbstractDSLAdapter {
 		Map<String, Object> map = (Map<String, Object>) data.get("app");
 		AppMetadata metadata = new AppMetadata();
 		if (Arrays.asList(DIFY_CHATBOT_MODES).contains((String) map.get("mode"))) {
-			metadata.setMode(AppMetadata.CHATBOT_MODE);
+			metadata.setMode(AppMode.CHATBOT.value());
 		}
 		else if (Arrays.asList(DIFY_WORKFLOW_MODES).contains((String) map.get("mode"))) {
-			metadata.setMode(AppMetadata.WORKFLOW_MODE);
+			metadata.setMode(AppMode.WORKFLOW.value());
 		}
 		else {
 			throw new IllegalArgumentException("unknown dify app mode" + map.get("mode"));
@@ -88,7 +84,7 @@ public class DifyDSLAdapter extends AbstractDSLAdapter {
 	@Override
 	public Map<String, Object> metadataToMap(AppMetadata metadata) {
 		Map<String, Object> data = new HashMap<>();
-		String difyMode = metadata.getMode().equals(AppMetadata.WORKFLOW_MODE) ? "workflow" : "agent-chat";
+		String difyMode = metadata.getMode().equals(AppMode.WORKFLOW.value()) ? "workflow" : "agent-chat";
 		data.put("app", Map.of("name", metadata.getName(), "description", metadata.getDescription(), "mode", difyMode));
 		data.put("kind", "app");
 		return data;
@@ -135,7 +131,7 @@ public class DifyDSLAdapter extends AbstractDSLAdapter {
 		// convert edges
 		if (data.containsKey("edges")) {
 			List<Map<String, Object>> edges = (List<Map<String, Object>>) data.get("edges");
-			constructEdges(edges, workflowEdges, branchEdges);
+			constructEdges((List<Map<String, Object>>) data.get("nodes"), edges, workflowEdges, branchEdges);
 		}
 		// convert if-else node to condition edge
 		constructConditionEdge(branchNodes, branchEdges, workflowEdges);
@@ -158,39 +154,47 @@ public class DifyDSLAdapter extends AbstractDSLAdapter {
 				continue;
 			}
 			// determine the type of dify node is supported yet
-			NodeType nodeType = NodeType.difyValueOf(difyNodeType);
-			if (nodeType == null) {
-				throw new NotImplementedException("unsupported node type " + difyNodeType);
-			}
+			NodeType nodeType = NodeType.fromDifyValue(difyNodeType)
+					.orElseThrow(()->new NotImplementedException("Unsupported dify node type " + difyNodeType));
 			// convert node map to workflow node using jackson
 			nodeMap.remove("data");
 			Node n = objectMapper.convertValue(nodeMap, Node.class);
 			// set title and desc
 			n.setTitle((String) nodeDataMap.get("title")).setDesc((String) nodeDataMap.get("desc"));
 			// convert node data using specific WorkflowNodeDataConverter
-			NodeDataConverter nodeDataConverter = getNodeDataConverter(nodeType.value());
+			NodeDataConverter nodeDataConverter = getNodeDataConverter(nodeType);
 			n.setData(nodeDataConverter.parseDifyData(nodeDataMap));
 			n.setType(nodeType.value());
 			nodes.add(n);
 		}
 	}
 
-	private void constructEdges(List<Map<String, Object>> edgeMaps, List<Edge> edges, Map<String, Edge> branchEdges) {
+	private void constructEdges(List<Map<String, Object>> nodeMaps, List<Map<String, Object>> edgeMaps, List<Edge> edges, Map<String, Edge> branchEdges) {
 		ObjectMapper objectMapper = new ObjectMapper();
 		objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 		for (Map<String, Object> edgeMap : edgeMaps) {
 			Edge edge = objectMapper.convertValue(edgeMap, Edge.class);
-			if (edgeMap.get("sourceHandle").equals("source")) {
-				edge.setType(EdgeType.DIRECT.value());
-				edges.add(edge);
-			}
-			else {
+			if (isBranchEdge(nodeMaps,edgeMap)) {
 				// collect if-else edges
 				String sourceHandle = (String) edgeMap.get("sourceHandle");
 				String source = (String) edgeMap.get("source");
 				branchEdges.put(conditionKey(source, sourceHandle), edge);
 			}
+			else {
+				edge.setType(EdgeType.DIRECT.value());
+				edges.add(edge);
+			}
 		}
+	}
+
+	private boolean isBranchEdge(List<Map<String, Object>> nodeMaps, Map<String, Object> edgeMap ){
+		if (!edgeMap.get("sourceHandle").equals("source")){
+			return true;
+		}
+		//TODO
+		return false;
+//		String targetNodeId = (String) edgeMap.get("target");
+//		return nodeMaps.stream().anyMatch(nodeMap -> nodeMap.get("id").equals(targetNodeId));
 	}
 
 	private void constructConditionEdge(List<Map<String, Object>> branchNodes, Map<String, Edge> branchEdges,
@@ -206,8 +210,10 @@ public class DifyDSLAdapter extends AbstractDSLAdapter {
 				List<Map<String, Object>> conditionMaps = (List<Map<String, Object>>) caseData.get("conditions");
 				List<Case.Condition> conditions = conditionMaps.stream().map(conditionMap -> {
 					List<String> selectors = (List<String>) conditionMap.get("variable_selector");
+					VariableType varType = VariableType.fromDifyValue((String) conditionMap.get("varType"))
+							.orElseThrow(()-> new NotImplementedException("Unsupported dify variable type: "+conditionMap.get("varType")));
 					return new Case.Condition().setValue((String) conditionMap.get("value"))
-						.setVarType((String) conditionMap.get("varType"))
+						.setVarType(varType.value())
 						.setComparisonOperator((String) conditionMap.get("comparison_operator"))
 						.setVariableSelector(new VariableSelector(selectors.get(0), selectors.get(1)));
 				}).collect(Collectors.toList());
@@ -326,8 +332,9 @@ public class DifyDSLAdapter extends AbstractDSLAdapter {
 		objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 		for (Node node : nodes) {
 			Map<String, Object> n = objectMapper.convertValue(node, new TypeReference<>() {});
-			NodeType nodeType = NodeType.valueOf(node.getType());
-			NodeDataConverter nodeDataConverter = getNodeDataConverter(node.getType());
+			NodeType nodeType = NodeType.fromValue(node.getType())
+					.orElseThrow(()-> new NotImplementedException("Can not convert Node " + node.getType() + "to dify node"));
+			NodeDataConverter nodeDataConverter = getNodeDataConverter(nodeType);
 			Map<String, Object> nodeData = nodeDataConverter.dumpDifyData(node.getData());
 			nodeData.put("type", nodeType.difyValue());
 			nodeData.put("title", node.getTitle());
@@ -351,8 +358,8 @@ public class DifyDSLAdapter extends AbstractDSLAdapter {
 	}
 
 	@Override
-	public Boolean supportDialect(String dialect) {
-		return DIFY_DIALECT.equals(dialect);
+	public Boolean supportDialect(DSLDialectType dialect) {
+		return DSLDialectType.DIFY.equals(dialect);
 	}
 
 }

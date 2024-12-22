@@ -4,7 +4,7 @@ import java.util.Map;
 
 public interface RunnableBuilder<T> {
 
-    Boolean support(String runnableType);
+    Boolean support(RunnableType runnableType);
 
     Runnable build(T runnableModel, String runId, Map<String, Object> rawInputs) throws Exception;
 

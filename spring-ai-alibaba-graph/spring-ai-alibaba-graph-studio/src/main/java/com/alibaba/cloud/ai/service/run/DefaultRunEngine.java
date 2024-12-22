@@ -19,7 +19,7 @@ public class DefaultRunEngine<T extends RunnableModel> implements Runner<T> {
         this.builders = builders;
     }
 
-    private RunnableBuilder<T> getRunnerBuilder(String runnableType){
+    private RunnableBuilder<T> getRunnerBuilder(RunnableType runnableType){
         return builders.stream().
                 filter(builder -> builder.support(runnableType))
                 .findFirst()
@@ -28,7 +28,7 @@ public class DefaultRunEngine<T extends RunnableModel> implements Runner<T> {
 
     @Override
     public RunEvent invoke(T runnerModel, Map<String, Object> inputs) {
-        RunnableBuilder<T> builder = getRunnerBuilder(runnerModel.runnerType());
+        RunnableBuilder<T> builder = getRunnerBuilder(runnerModel.runnableType());
         Runnable runnable;
         String runId = UUID.randomUUID().toString();
         try {
@@ -46,7 +46,7 @@ public class DefaultRunEngine<T extends RunnableModel> implements Runner<T> {
 
     @Override
     public Flux<RunEvent> stream(T runnerModel, Map<String, Object> inputs) {
-        RunnableBuilder<T> builder = getRunnerBuilder(runnerModel.runnerType());
+        RunnableBuilder<T> builder = getRunnerBuilder(runnerModel.runnableType());
         Runnable runnable;
         String runId = UUID.randomUUID().toString();
         Flux<RunEvent> buildingFlux = Flux.just(new RunEvent(RunEvent.EventType.RUNNABLE_BUILDING.value())

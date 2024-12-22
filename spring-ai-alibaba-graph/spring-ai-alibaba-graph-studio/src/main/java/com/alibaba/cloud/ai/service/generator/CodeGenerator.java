@@ -14,7 +14,7 @@ public interface CodeGenerator {
 	 * @param nodeType {@link NodeType}
 	 * @return true if supported
 	 */
-	Boolean supportNodeType(String nodeType);
+	Boolean supportNodeType(NodeType nodeType);
 
 	/**
 	 * generate code

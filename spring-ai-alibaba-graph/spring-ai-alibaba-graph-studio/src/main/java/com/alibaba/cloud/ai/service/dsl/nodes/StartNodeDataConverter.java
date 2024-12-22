@@ -21,8 +21,8 @@ public class StartNodeDataConverter implements NodeDataConverter<StartNodeData> 
 	private static final List<String> VARIABLE_STRING_TYPES = List.of("text-input", "paragraph", "select");
 
 	@Override
-	public Boolean supportType(String nodeType) {
-		return NodeType.START.value().equals(nodeType);
+	public Boolean supportType(NodeType nodeType) {
+		return NodeType.START.equals(nodeType);
 	}
 
 	@Override
