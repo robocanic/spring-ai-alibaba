@@ -38,7 +38,7 @@ public class EndNodeAction implements NodeAction {
     }
 
     @Override
-    public NodeActionDescriptor getNodeDescriptor() {
+    public NodeActionDescriptor getNodeActionDescriptor() {
         return this.descriptor;
     }
 

@@ -60,7 +60,7 @@ public class LLMNodeData extends NodeData {
 
 		private Integer maxTokens;
 
-		private Float repetitionPenalty;
+		private Double repetitionPenalty;
 
 		private String responseFormat;
 
@@ -68,9 +68,9 @@ public class LLMNodeData extends NodeData {
 
 		private List<String> stop;
 
-		private Float temperature;
+		private Double temperature;
 
-		private Float topP;
+		private Double topP;
 
 		private Integer topK;
 

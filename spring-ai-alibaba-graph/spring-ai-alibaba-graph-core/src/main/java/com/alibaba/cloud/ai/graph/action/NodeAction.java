@@ -10,7 +10,7 @@ public interface NodeAction {
 
 	Map<String, Object> apply(NodeState t) throws Exception;
 
-	default NodeActionDescriptor getNodeDescriptor(){
+	default NodeActionDescriptor getNodeActionDescriptor(){
 		return NodeActionDescriptor.EMPTY;
 	}
 

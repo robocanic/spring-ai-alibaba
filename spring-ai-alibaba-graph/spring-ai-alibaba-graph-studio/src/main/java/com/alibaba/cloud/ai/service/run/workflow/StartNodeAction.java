@@ -33,8 +33,8 @@ public class StartNodeAction implements NodeAction {
     }
 
     @Override
-    public NodeActionDescriptor getNodeDescriptor() {
-        return NodeAction.super.getNodeDescriptor();
+    public NodeActionDescriptor getNodeActionDescriptor() {
+        return NodeAction.super.getNodeActionDescriptor();
     }
 
     @Override
