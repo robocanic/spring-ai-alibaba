@@ -11,11 +11,11 @@ import java.util.Map;
 import java.util.UUID;
 
 @Component
-public class DefaultRunEngine<T extends RunnableModel> implements Runner<T> {
+public class RunnerEngine<T extends RunnableModel> implements Runner<T> {
 
     private final List<RunnableBuilder<T>> builders;
 
-    public DefaultRunEngine(List<RunnableBuilder<T>> builders){
+    public RunnerEngine(List<RunnableBuilder<T>> builders){
         this.builders = builders;
     }
 

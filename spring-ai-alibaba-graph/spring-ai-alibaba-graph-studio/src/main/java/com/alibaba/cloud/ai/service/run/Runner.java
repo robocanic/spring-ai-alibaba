@@ -6,7 +6,7 @@ import reactor.core.publisher.Flux;
 import java.util.Map;
 
 /**
- * Runner abstract the running action of a runnable object(could be an app, node, etc.)
+ * Runner abstract the running action of a runnable model(could be an app, node, etc.)
  */
 public interface Runner<T extends RunnableModel> {
 
