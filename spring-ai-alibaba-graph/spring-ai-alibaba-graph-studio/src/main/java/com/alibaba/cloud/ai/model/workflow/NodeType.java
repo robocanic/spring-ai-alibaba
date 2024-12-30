@@ -1,7 +1,5 @@
 package com.alibaba.cloud.ai.model.workflow;
 
-import com.alibaba.cloud.ai.exception.NotImplementedException;
-
 import java.util.Arrays;
 import java.util.Optional;
 
@@ -21,7 +19,9 @@ public enum NodeType {
 
 	AGGREGATOR("aggregator", "variable-aggregator"),
 
-	HUMAN("human", "unsupported"),;
+	HUMAN("human", "unsupported"),
+
+	BRANCH("branch", "if-else");
 
 	private String value;
 
@@ -41,16 +41,12 @@ public enum NodeType {
 	}
 
 
-	public static Optional<NodeType> fromValue(String value){
-		return Arrays.stream(NodeType.values())
-			.filter(type -> type.value().equals(value))
-			.findFirst();
+	public static Optional<NodeType> fromValue(String value) {
+		return Arrays.stream(NodeType.values()).filter(nodeType -> nodeType.value.equals(value)).findFirst();
 	}
 
 	public static Optional<NodeType> fromDifyValue(String difyValue) {
-		return Arrays.stream(NodeType.values())
-			.filter(type -> type.difyValue().equals(difyValue))
-			.findFirst();
+		return Arrays.stream(NodeType.values()).filter(nodeType -> nodeType.difyValue.equals(difyValue)).findFirst();
 	}
 
 }

@@ -6,6 +6,8 @@ import com.alibaba.cloud.ai.model.VariableType;
 import com.alibaba.cloud.ai.model.workflow.NodeData;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
+import lombok.NoArgsConstructor;
+import lombok.ToString;
 import lombok.experimental.Accessors;
 
 import java.util.Arrays;
@@ -14,7 +16,9 @@ import java.util.Map;
 import java.util.Optional;
 
 @EqualsAndHashCode(callSuper = true)
+@ToString(callSuper = true)
 @Accessors(chain = true)
+@NoArgsConstructor
 @Data
 public class RetrieverNodeData extends NodeData {
 

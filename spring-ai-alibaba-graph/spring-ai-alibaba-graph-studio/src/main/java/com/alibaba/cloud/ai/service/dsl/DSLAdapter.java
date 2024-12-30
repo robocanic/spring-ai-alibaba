@@ -25,9 +25,9 @@ public interface DSLAdapter {
 
 	/**
 	 * Judge if current implementation supports this dialect
-	 * @param dialect {@link DSLDialectType} a specific dsl format
+	 * @param dialectType a specific dsl format, see {@link DSLDialectType}
 	 * @return if supports return true, otherwise return false
 	 */
-	Boolean supportDialect(DSLDialectType dialect);
+	Boolean supportDialect(DSLDialectType dialectType);
 
 }

@@ -6,13 +6,14 @@ import lombok.Setter;
 
 @Getter
 @Setter
-public class NotImplementedException extends RuntimeException{
+public class NotImplementedException extends RuntimeException {
 
 	private int code;
 
 	private String msg;
 
 	public NotImplementedException() {
+		super();
 		this.code = ReturnCode.RC501.getCode();
 		this.msg = ReturnCode.RC501.getMsg();
 	}

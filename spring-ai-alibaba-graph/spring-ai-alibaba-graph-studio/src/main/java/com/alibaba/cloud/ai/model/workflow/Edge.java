@@ -14,29 +14,18 @@ import java.util.Map;
 @Accessors(chain = true)
 public class Edge {
 
-	public static final String DEFAULT_CASE_ID = "false";
-
 	private String id;
-
-	private String type;
 
 	private String source;
 
 	private String target;
 
-	private List<Case> cases;
+	private String sourceHandle;
 
-	// source+case -> target id
-	private Map<String, String> targetMap;
+	private String targetHandle;
 
 	private Map<String, Object> data;
 
 	private Integer zIndex = 0;
-
-	private Boolean selected = false;
-
-	public static String getTarget(String source, String caseId){
-		return source + "&" + caseId;
-	}
 
 }

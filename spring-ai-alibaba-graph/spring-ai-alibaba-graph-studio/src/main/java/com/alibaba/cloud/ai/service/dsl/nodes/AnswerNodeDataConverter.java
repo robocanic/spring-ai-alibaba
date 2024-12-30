@@ -1,53 +1,72 @@
 package com.alibaba.cloud.ai.service.dsl.nodes;
 
-import com.alibaba.cloud.ai.graph.action.NodeAction;
 import com.alibaba.cloud.ai.model.VariableSelector;
-import com.alibaba.cloud.ai.model.workflow.NodeData;
 import com.alibaba.cloud.ai.model.workflow.NodeType;
 import com.alibaba.cloud.ai.model.workflow.nodedata.AnswerNodeData;
-import com.alibaba.cloud.ai.service.dsl.NodeDataConverter;
+import com.alibaba.cloud.ai.service.dsl.AbstractNodeDataConverter;
+import com.alibaba.cloud.ai.service.dsl.DSLDialectType;
 import com.alibaba.cloud.ai.utils.StringTemplateUtil;
 import org.springframework.stereotype.Component;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
-import static com.alibaba.cloud.ai.model.VariableSelector.DEFAULT_SEPARATOR;
+import java.util.*;
+import java.util.stream.Stream;
 
 @Component
-public class AnswerNodeDataConverter implements NodeDataConverter<AnswerNodeData> {
+public class AnswerNodeDataConverter extends AbstractNodeDataConverter<AnswerNodeData> {
 
 	@Override
-	public Boolean supportType(NodeType nodeType) {
+	public Boolean supportNodeType(NodeType nodeType) {
 		return NodeType.ANSWER.equals(nodeType);
 	}
 
 	@Override
-	public AnswerNodeData parseDifyData(Map<String, Object> data) {
-		String difyTmpl = (String) data.get("answer");
-		List<String> variables = new ArrayList<>();
-		String tmpl = StringTemplateUtil.fromDifyTmpl(difyTmpl, variables);
-		List<VariableSelector> inputs = variables.stream().map(variable -> {
-			String[] splits = variable.split(DEFAULT_SEPARATOR, 2);
-			return new VariableSelector(splits[0], splits[1]);
-		}).toList();
-		return new AnswerNodeData(inputs, AnswerNodeData.DEFAULT_OUTPUTS).setAnswer(tmpl);
+	protected List<DialectConverter<AnswerNodeData>> getDialectConverters() {
+		return Stream.of(AnswerNodeDialectConverter.values())
+			.map(AnswerNodeDialectConverter::dialectConverter)
+			.toList();
 	}
 
-	@Override
-	public Map<String, Object> dumpDifyData(AnswerNodeData nodeData) {
-		AnswerNodeData answerNodeData = (AnswerNodeData) nodeData;
-		Map<String, Object> data = new HashMap<>();
-		String difyTmpl = StringTemplateUtil.toDifyTmpl(answerNodeData.getAnswer());
-		data.put("answer", difyTmpl);
-		return data;
-	}
+	private enum AnswerNodeDialectConverter {
 
-	@Override
-	public NodeAction constructNodeAction(String nodeId, NodeData nodeData) {
-		return null;
+		DIFY(new DialectConverter<>() {
+			@Override
+			public Boolean supportDialect(DSLDialectType dialectType) {
+				return DSLDialectType.DIFY.equals(dialectType);
+			}
+
+			@Override
+			public AnswerNodeData parse(Map<String, Object> data) {
+				String difyTmpl = (String) data.get("answer");
+				List<String> variables = new ArrayList<>();
+				String tmpl = StringTemplateUtil.fromDifyTmpl(difyTmpl, variables);
+				List<VariableSelector> inputs = variables.stream().map(variable -> {
+					String[] splits = variable.split("\\.", 2);
+					return new VariableSelector(splits[0], splits[1]);
+				}).toList();
+				return new AnswerNodeData(inputs, AnswerNodeData.DEFAULT_OUTPUTS).setAnswer(tmpl);
+			}
+
+			@Override
+			public Map<String, Object> dump(AnswerNodeData nodeData) {
+				Map<String, Object> data = new HashMap<>();
+				String difyTmpl = StringTemplateUtil.toDifyTmpl(nodeData.getAnswer());
+				data.put("answer", difyTmpl);
+				return data;
+			}
+		}),
+
+		CUSTOM(AbstractNodeDataConverter.defaultCustomDialectConverter(AnswerNodeData.class));
+
+		private final DialectConverter<AnswerNodeData> dialectConverter;
+
+		public DialectConverter<AnswerNodeData> dialectConverter() {
+			return dialectConverter;
+		}
+
+		AnswerNodeDialectConverter(DialectConverter<AnswerNodeData> dialectConverter) {
+			this.dialectConverter = dialectConverter;
+		}
+
 	}
 
 }

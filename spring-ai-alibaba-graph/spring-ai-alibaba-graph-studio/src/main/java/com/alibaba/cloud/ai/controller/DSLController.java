@@ -1,7 +1,6 @@
 package com.alibaba.cloud.ai.controller;
 
 import com.alibaba.cloud.ai.api.DSLAPI;
-import com.alibaba.cloud.ai.exception.NotImplementedException;
 import com.alibaba.cloud.ai.saver.AppSaver;
 import com.alibaba.cloud.ai.service.dsl.DSLAdapter;
 import com.alibaba.cloud.ai.service.dsl.DSLDialectType;
@@ -26,16 +25,13 @@ public class DSLController implements DSLAPI {
 	}
 
 	@Override
-	public DSLAdapter getAdapter(String dialect) {
-		DSLDialectType dialectType = DSLDialectType.fromValue(dialect)
-				.orElseThrow(()-> new NotImplementedException("Unsupported dsl dialect" + dialect));
-		return adapters.stream().filter(adapter -> adapter.supportDialect(dialectType)).findFirst().orElse(null);
+	public DSLAdapter getAdapter(DSLDialectType dialect) {
+		return adapters.stream().filter(adapter -> adapter.supportDialect(dialect)).findFirst().orElse(null);
 	}
 
 	@Override
 	public AppSaver getAppSaver() {
 		return appSaver;
 	}
-
 
 }

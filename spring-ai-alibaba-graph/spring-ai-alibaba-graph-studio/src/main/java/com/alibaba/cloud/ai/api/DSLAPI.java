@@ -25,7 +25,7 @@ import java.util.Optional;
 @Tag(name = "DSL", description = "the DSL API")
 public interface DSLAPI {
 
-	DSLAdapter getAdapter(String dialect);
+	DSLAdapter getAdapter(DSLDialectType dialect);
 
 	AppSaver getAppSaver();
 
@@ -34,7 +34,27 @@ public interface DSLAPI {
 	default R<String> exportDSL(@PathVariable("id") String id, @RequestParam("dialect") String dialect) {
 		App app = Optional.ofNullable(getAppSaver().get(id))
 			.orElseThrow(() -> new IllegalArgumentException("App not found: " + id));
-		return R.success(getAdapter(dialect).exportDSL(app));
+		DSLDialectType dialectType = DSLDialectType.fromValue(dialect)
+			.orElseThrow(() -> new NotImplementedException("Unsupported dsl dialect: " + dialect));
+		return R.success(getAdapter(dialectType).exportDSL(app));
+	}
+
+	@Operation(summary = "export app to dsl file", tags = { "DSL" })
+	@GetMapping(value = "/export-file/{id}", produces = MediaType.APPLICATION_OCTET_STREAM_VALUE)
+	default ResponseEntity<Resource> exportDSLFile(@PathVariable("id") String id,
+			@RequestParam("dialect") String dialect) {
+		App app = Optional.ofNullable(getAppSaver().get(id))
+			.orElseThrow(() -> new IllegalArgumentException("App not found: " + id));
+		DSLDialectType dialectType = DSLDialectType.fromValue(dialect)
+			.orElseThrow(() -> new NotImplementedException("Unsupported dsl dialect: " + dialect));
+		String dslContent = getAdapter(dialectType).exportDSL(app);
+		ByteArrayResource resource = new ByteArrayResource(dslContent.getBytes(StandardCharsets.UTF_8));
+		String fileName = app.getMetadata().getName() + dialectType.fileExtension();
+		return ResponseEntity.ok()
+			.header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + fileName + "\"")
+			.contentType(MediaType.APPLICATION_OCTET_STREAM)
+			.contentLength(resource.contentLength())
+			.body(resource);
 	}
 
 	@Operation(summary = "export app to dsl file", tags = { "DSL" })
@@ -57,7 +77,26 @@ public interface DSLAPI {
 	@Operation(summary = "import app from dsl", tags = { "DSL" })
 	@PostMapping(value = "/import", produces = "application/json")
 	default R<App> importDSL(@RequestBody DSLParam param) {
-		App app = getAdapter(param.getDialect()).importDSL(param.getContent());
+		DSLDialectType dialectType = DSLDialectType.fromValue(param.getDialect())
+			.orElseThrow(() -> new NotImplementedException("Unsupported dsl dialect: " + param.getDialect()));
+		App app = getAdapter(dialectType).importDSL(param.getContent());
+		app = getAppSaver().save(app);
+		return R.success(app);
+	}
+
+	@Operation(summary = "import app from dsl file ", tags = { "DSL" })
+	@PostMapping(value = "/import-file", consumes = MediaType.MULTIPART_FORM_DATA_VALUE, produces = "application/json")
+	default R<App> importDSLFile(@RequestPart("file") MultipartFile file, @RequestParam("dialect") String dialect) {
+		String content;
+		try {
+			content = new String(file.getBytes(), StandardCharsets.UTF_8);
+		}
+		catch (IOException e) {
+			throw new SerializationException("Read dsl file failed, please check if the encoding of file is UTF_8 ");
+		}
+		DSLDialectType dialectType = DSLDialectType.fromValue(dialect)
+			.orElseThrow(() -> new NotImplementedException("Unsupported dsl dialect: " + dialect));
+		App app = getAdapter(dialectType).importDSL(content);
 		app = getAppSaver().save(app);
 		return R.success(app);
 	}

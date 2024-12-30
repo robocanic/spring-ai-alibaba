@@ -4,11 +4,13 @@ import com.alibaba.cloud.ai.exception.NotImplementedException;
 import com.alibaba.cloud.ai.service.run.RunnableModel;
 import com.alibaba.cloud.ai.service.run.RunnableType;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 /**
  * Unified app model definition.
  */
 @Data
+@NoArgsConstructor
 public class App implements RunnableModel {
 
 	private AppMetadata metadata;

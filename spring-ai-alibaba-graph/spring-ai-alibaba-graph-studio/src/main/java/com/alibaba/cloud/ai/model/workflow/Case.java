@@ -264,6 +264,7 @@ public class Case {
 
 		private String varType;
 
+		// TODO comparison operator enum
 		private String comparisonOperator;
 
 		private VariableSelector variableSelector;
