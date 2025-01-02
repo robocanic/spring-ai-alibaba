@@ -14,7 +14,11 @@
  * limitations under the License.
  */
 
-import { ChatModelData, ChatModelResultData } from '@/types/chat_model';
+import {
+  ChatModelData,
+  ChatModelResultData,
+  ModelType,
+} from '@/types/chat_model';
 import { request } from 'ice';
 
 export default {
@@ -49,6 +53,13 @@ export default {
       url: '/studio/api/chat-models/run/image-gen/url',
       method: 'post',
       data,
+    });
+  },
+
+  async getModelNames(modelType: ModelType): Promise<string[]> {
+    return await request({
+      url: `/studio/api/chat-models/model-names?modelType=${modelType}`,
+      method: 'get',
     });
   },
 };
