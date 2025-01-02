@@ -3,8 +3,6 @@ package com.alibaba.cloud.ai.graph.state;
 import java.util.Optional;
 import java.util.function.Supplier;
 
-import static java.util.Optional.ofNullable;
-
 /**
  * A Channel is a mechanism used to maintain a state property.
  * <p>

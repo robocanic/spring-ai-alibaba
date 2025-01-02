@@ -35,7 +35,7 @@ public final class StateSnapshot extends NodeOutput {
 		return next();
 	}
 
-	private StateSnapshot(@NonNull String node, @NonNull NodeState state, @NonNull RunnableConfig config) {
+	private StateSnapshot(@NonNull String node, @NonNull GraphState state, @NonNull RunnableConfig config) {
 		super(node, state);
 		this.config = config;
 	}

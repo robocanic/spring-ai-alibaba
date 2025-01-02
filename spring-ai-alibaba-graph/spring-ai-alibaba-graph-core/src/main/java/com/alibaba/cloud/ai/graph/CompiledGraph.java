@@ -4,14 +4,22 @@ import com.alibaba.cloud.ai.graph.action.AsyncEdgeAction;
 import com.alibaba.cloud.ai.graph.action.AsyncNodeActionWithConfig;
 import com.alibaba.cloud.ai.graph.checkpoint.BaseCheckpointSaver;
 import com.alibaba.cloud.ai.graph.checkpoint.Checkpoint;
-import com.alibaba.cloud.ai.graph.state.NodeState;
+import com.alibaba.cloud.ai.graph.state.DefaultValue;
+import com.alibaba.cloud.ai.graph.state.GraphState;
 import com.alibaba.cloud.ai.graph.state.StateSnapshot;
+import com.alibaba.cloud.ai.graph.utils.ObjectMapperSingleton;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.Getter;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.bsc.async.AsyncGenerator;
 
 import java.io.IOException;
+import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.ParameterizedType;
+import java.lang.reflect.Type;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -23,6 +31,8 @@ import java.util.Spliterator;
 import java.util.Spliterators;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import static java.lang.String.format;
@@ -43,7 +53,7 @@ public class CompiledGraph {
 	final StateGraph stateGraph;
 
 	@Getter
-	final Map<String, AsyncNodeActionWithConfig> nodes = new LinkedHashMap<>();
+	final Map<String, AsyncNodeActionWithConfig<?,?>> nodes = new LinkedHashMap<>();
 
 	@Getter
 	final Map<String, EdgeValue> edges = new LinkedHashMap<>();
@@ -158,7 +168,7 @@ public class CompiledGraph {
 			return route.id();
 		}
 		if (route.value() != null) {
-			NodeState derefState = stateGraph.getStateFactory().apply(state);
+			GraphState derefState = stateGraph.getStateFactory().apply(state);
 			AsyncEdgeAction condition = route.value().action();
 			String newRoute = condition.apply(derefState).get();
 			String result = route.value().mappings().get(newRoute);
@@ -220,15 +230,15 @@ public class CompiledGraph {
 
 		return compileConfig.checkpointSaver()
 			.flatMap(saver -> saver.get(config))
-			.map(cp -> NodeState.updateState(cp.getState(), inputs))
-			.orElseGet(() -> NodeState.updateState(getInitialStateFromSchema(), inputs));
+			.map(cp -> GraphState.updateState(cp.getState(), inputs))
+			.orElseGet(() -> GraphState.updateState(getInitialStateFromSchema(), inputs));
 	}
 
-	NodeState useCurrentState(Map<String, Object> data) throws ClassNotFoundException {
+	GraphState useCurrentState(Map<String, Object> data) throws ClassNotFoundException {
 		return stateGraph.getStateSerializer().stateOf(data);
 	}
 
-	NodeState cloneState(Map<String, Object> data) throws IOException, ClassNotFoundException {
+	GraphState cloneState(Map<String, Object> data) throws IOException, ClassNotFoundException {
 		return stateGraph.getStateSerializer().cloneObject(data);
 	}
 
@@ -361,7 +371,7 @@ public class CompiledGraph {
 
 				Map<String, Object> initState = getInitialState(inputs, config);
 				// patch for backward support of AppendableValue
-				NodeState initializedState = stateGraph.getStateFactory().apply(initState);
+				GraphState initializedState = stateGraph.getStateFactory().apply(initState);
 				this.currentState = initializedState.data();
 				this.nextNodeId = null;
 				this.currentNodeId = StateGraph.START;
@@ -407,7 +417,7 @@ public class CompiledGraph {
 				if (StateGraph.END.equals(nextNodeId)) {
 					nextNodeId = null;
 					currentNodeId = null;
-					if (currentState.containsKey(NodeState.SUB_GRAPH)) {
+					if (currentState.containsKey(GraphState.SUB_GRAPH)) {
 						return Data.of(buildCurrentNodeOutput(StateGraph.END));
 					}
 					else {
@@ -424,17 +434,18 @@ public class CompiledGraph {
 
 				currentNodeId = nextNodeId;
 
-				AsyncNodeActionWithConfig action = nodes.get(currentNodeId);
+				AsyncNodeActionWithConfig<?,?> action = nodes.get(currentNodeId);
 
 				if (action == null)
 					throw StateGraph.RunnableErrors.missingNode.exception(currentNodeId);
+				GraphState cloneState = cloneState(currentState);
 
-				future = action.apply(cloneState(currentState), config).thenApply(partialState -> {
+				future = action.apply(constructInputState(action, cloneState), config).thenApply(outputState -> {
 					try {
-						currentState = partialState;
+						currentState = GraphState.updateState(currentState, outputState);
 						nextNodeId = nextNodeId(currentNodeId, currentState);
 
-						if (currentState.containsKey(NodeState.SUB_GRAPH)) {
+						if (currentState.containsKey(GraphState.SUB_GRAPH)) {
 							return buildCurrentNodeOutput(currentNodeId);
 						}
 						else {
@@ -457,6 +468,34 @@ public class CompiledGraph {
 
 		}
 
+		private <I> I constructInputState(AsyncNodeActionWithConfig<?,?> action, GraphState state) throws GraphStateException{
+			Class<?> actionClass = action.getClass();
+			for (Type genericInterface : actionClass.getGenericInterfaces()) {
+				if (genericInterface instanceof ParameterizedType type){
+                    Type[] actualTypeArguments = type.getActualTypeArguments();
+					Type inputType = actualTypeArguments[0];
+					Field[] fields = inputType.getClass().getFields();
+					Map<String, Object> inputStateMap = new HashMap<>();
+					for (Field field : fields) {
+						Optional<Object> value = state.value(field.getName());
+						if (field.isAnnotationPresent(DefaultValue.class)) {
+							DefaultValue defaultValue = field.getAnnotation(DefaultValue.class);
+							try {
+								Supplier<?> supplier = defaultValue.value().getConstructor().newInstance();
+								inputStateMap.put(field.getName(), value.orElseGet(supplier));
+							} catch (Exception e) {
+								throw new GraphStateException("Can not construct supplier of " + genericInterface.getTypeName() + "." + field.getName());
+							}
+						}else {
+							inputStateMap.put(field.getName(), value.orElse(null));
+						}
+					}
+					ObjectMapper objectMapper = ObjectMapperSingleton.getInstance();
+					objectMapper.convertValue(inputStateMap, inputType.getClass());
+				}
+			}
+			throw new GraphStateException("Can not find InputState of " + action.getClass().getName());
+		}
 	}
 
 	/**

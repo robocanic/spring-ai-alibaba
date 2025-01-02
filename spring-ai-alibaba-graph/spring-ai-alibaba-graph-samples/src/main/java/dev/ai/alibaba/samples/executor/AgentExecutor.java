@@ -4,7 +4,7 @@ import com.alibaba.cloud.ai.graph.GraphStateException;
 import com.alibaba.cloud.ai.graph.StateGraph;
 import com.alibaba.cloud.ai.graph.serializer.StateSerializer;
 import com.alibaba.cloud.ai.graph.serializer.agent.JSONStateSerializer;
-import com.alibaba.cloud.ai.graph.state.NodeState;
+import com.alibaba.cloud.ai.graph.state.GraphState;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.stereotype.Service;
@@ -64,7 +64,7 @@ public class AgentExecutor {
 		this.agentService = agentService;
 	}
 
-	Map<String, Object> callAgent(NodeState state) {
+	Map<String, Object> callAgent(GraphState state) {
 		log.info("callAgent");
 
 		var input = state.input().orElseThrow(() -> new IllegalArgumentException("no input provided!"));
@@ -77,17 +77,17 @@ public class AgentExecutor {
 
 			var action = new Action(output.getToolCalls().get(0), "");
 
-			return Map.of(NodeState.OUTPUT, new Outcome(action, null));
+			return Map.of(GraphState.OUTPUT, new Outcome(action, null));
 
 		}
 		else {
 			var finish = new Finish(Map.of("returnValues", output.getContent()), output.getContent());
 
-			return Map.of(NodeState.OUTPUT, new Outcome(null, finish));
+			return Map.of(GraphState.OUTPUT, new Outcome(null, finish));
 		}
 	}
 
-	String shouldContinue(NodeState state) {
+	String shouldContinue(GraphState state) {
 
 		return "end";
 	}

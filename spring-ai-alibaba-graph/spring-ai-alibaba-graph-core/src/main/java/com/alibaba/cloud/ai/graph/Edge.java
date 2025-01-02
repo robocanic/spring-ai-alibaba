@@ -1,6 +1,6 @@
 package com.alibaba.cloud.ai.graph;
 
-import com.alibaba.cloud.ai.graph.state.NodeState;
+import com.alibaba.cloud.ai.graph.state.GraphState;
 import lombok.Value;
 import lombok.experimental.Accessors;
 
@@ -13,7 +13,7 @@ import java.util.Objects;
  */
 @Value
 @Accessors(fluent = true)
-class Edge<State extends NodeState> {
+class Edge<State extends GraphState> {
 
 	/**
 	 * The ID of the source node.

@@ -5,7 +5,10 @@ import com.alibaba.cloud.ai.graph.action.AsyncNodeAction;
 import com.alibaba.cloud.ai.graph.action.AsyncNodeActionWithConfig;
 import com.alibaba.cloud.ai.graph.serializer.StateSerializer;
 import com.alibaba.cloud.ai.graph.state.AgentStateFactory;
-import com.alibaba.cloud.ai.graph.state.NodeState;
+import com.alibaba.cloud.ai.graph.state.GraphState;
+import com.alibaba.cloud.ai.graph.utils.ObjectMapperSingleton;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.Getter;
 import lombok.NonNull;
 import org.bsc.async.AsyncGenerator;
@@ -21,7 +24,7 @@ import static java.lang.String.format;
  * Represents a state graph with nodes and edges.
  *
  */
-public class StateGraph {
+public class StateGraph <T>{
 
 	/**
 	 * Enum representing various error messages related to graph state.
@@ -86,20 +89,23 @@ public class StateGraph {
 
 	Set<Node> nodes = new LinkedHashSet<>();
 
-	Set<Edge<NodeState>> edges = new LinkedHashSet<>();
+	Set<Edge<GraphState>> edges = new LinkedHashSet<>();
 
-	private EdgeValue<NodeState> entryPoint;
+	private EdgeValue<GraphState> entryPoint;
 
 	private String finishPoint;
 
 	@Getter
 	private final StateSerializer stateSerializer;
 
+	private final Class<T> stateClass;
+
 	/**
 	 * Constructs a new StateGraph with the specified serializer.
 	 * @param stateSerializer the serializer to serialize the state
 	 */
-	public StateGraph(@NonNull StateSerializer stateSerializer) {
+	public StateGraph(Class<T> stateClass, @NonNull StateSerializer stateSerializer) {
+		this.stateClass = stateClass;
 		this.stateSerializer = stateSerializer;
 	}
 
@@ -108,7 +114,7 @@ public class StateGraph {
 	}
 
 	@Deprecated
-	public EdgeValue<NodeState> getEntryPoint() {
+	public EdgeValue<GraphState> getEntryPoint() {
 		return entryPoint;
 	}
 
@@ -173,8 +179,10 @@ public class StateGraph {
 
 	public StateGraph addSubgraph(String id, CompiledGraph subGraph) throws GraphStateException {
 		return addNode(id, AsyncNodeActionWithConfig.node_async((state, config) -> {
-			AsyncGenerator<NodeOutput> generator = subGraph.stream(state.data(), config);
-			return Map.of(NodeState.SUB_GRAPH, generator);
+			ObjectMapper objectMapper = ObjectMapperSingleton.getInstance();
+			Map<String, Object> stateMap = objectMapper.convertValue(state, new TypeReference<>() {});
+			AsyncGenerator<NodeOutput> generator = subGraph.stream(stateMap, config);
+			return Map.of(GraphState.SUB_GRAPH, generator);
 		}));
 	}
 
@@ -216,7 +224,7 @@ public class StateGraph {
 			return this;
 		}
 
-		Edge<NodeState> edge = new Edge<>(sourceId, new EdgeValue<>(targetId, null));
+		Edge<GraphState> edge = new Edge<>(sourceId, new EdgeValue<>(targetId, null));
 
 		if (edges.contains(edge)) {
 			throw Errors.duplicateEdgeError.exception(sourceId);
@@ -248,7 +256,7 @@ public class StateGraph {
 			return this;
 		}
 
-		Edge<NodeState> edge = new Edge<>(sourceId, new EdgeValue<>(null, new EdgeCondition(condition, mappings)));
+		Edge<GraphState> edge = new Edge<>(sourceId, new EdgeValue<>(null, new EdgeCondition(condition, mappings)));
 
 		if (edges.contains(edge)) {
 			throw Errors.duplicateEdgeError.exception(sourceId);
@@ -290,7 +298,7 @@ public class StateGraph {
 			}
 		}
 
-		for (Edge<NodeState> edge : edges) {
+		for (Edge<GraphState> edge : edges) {
 
 			if (!nodes.contains(nodeById(edge.sourceId()))) {
 				throw Errors.missingNodeReferencedByEdge.exception(edge.sourceId());

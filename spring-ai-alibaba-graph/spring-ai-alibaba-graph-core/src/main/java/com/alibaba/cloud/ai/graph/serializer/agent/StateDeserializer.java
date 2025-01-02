@@ -1,7 +1,7 @@
 package com.alibaba.cloud.ai.graph.serializer.agent;
 
 import com.alibaba.cloud.ai.graph.CompiledGraph;
-import com.alibaba.cloud.ai.graph.state.NodeState;
+import com.alibaba.cloud.ai.graph.state.GraphState;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.DeserializationContext;
 import com.fasterxml.jackson.databind.JsonDeserializer;
@@ -12,22 +12,22 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-class StateDeserializer extends JsonDeserializer<NodeState> {
+class StateDeserializer extends JsonDeserializer<GraphState> {
 
 	@Override
-	public NodeState deserialize(JsonParser parser, DeserializationContext ctx) throws IOException {
+	public GraphState deserialize(JsonParser parser, DeserializationContext ctx) throws IOException {
 		JsonNode node = parser.getCodec().readTree(parser);
 
 		Map<String, Object> data = new HashMap<>();
 
 		var dataNode = node.has("data") ? node.get("data") : node;
-		if (dataNode.has(NodeState.INPUT) && StringUtils.hasText(dataNode.get(NodeState.INPUT).asText())) {
-			data.put(NodeState.INPUT, dataNode.get(NodeState.INPUT).asText());
+		if (dataNode.has(GraphState.INPUT) && StringUtils.hasText(dataNode.get(GraphState.INPUT).asText())) {
+			data.put(GraphState.INPUT, dataNode.get(GraphState.INPUT).asText());
 		}
-		if (dataNode.has(NodeState.OUTPUT)) {
-			JsonNode outputNode = dataNode.get(NodeState.OUTPUT);
+		if (dataNode.has(GraphState.OUTPUT)) {
+			JsonNode outputNode = dataNode.get(GraphState.OUTPUT);
 			if (StringUtils.hasText(outputNode.asText())) {
-				data.put(NodeState.OUTPUT, outputNode.asText());
+				data.put(GraphState.OUTPUT, outputNode.asText());
 			}
 			else {
 				if (!outputNode.isNull()) {
@@ -36,14 +36,14 @@ class StateDeserializer extends JsonDeserializer<NodeState> {
 				}
 			}
 		}
-		if (dataNode.has(NodeState.SUB_GRAPH)) {
-			JsonNode outputNode = dataNode.get(NodeState.SUB_GRAPH);
+		if (dataNode.has(GraphState.SUB_GRAPH)) {
+			JsonNode outputNode = dataNode.get(GraphState.SUB_GRAPH);
 			var agentOutcome = ctx.readValue(outputNode.traverse(parser.getCodec()),
 					CompiledGraph.AsyncNodeGenerator.class);
-			data.put(NodeState.SUB_GRAPH, agentOutcome);
+			data.put(GraphState.SUB_GRAPH, agentOutcome);
 		}
 
-		return new NodeState(data);
+		return new GraphState(data);
 	}
 
 }

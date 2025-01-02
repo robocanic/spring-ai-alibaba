@@ -4,10 +4,10 @@
  * <p>
  * This package includes:
  * <ul>
- * <li>{@link com.alibaba.cloud.ai.graph.state.NodeState} - Represents the state of an
+ * <li>{@link com.alibaba.cloud.ai.graph.state.GraphState} - Represents the state of an
  * agent with a map of data.</li>
  * <li>{@link com.alibaba.cloud.ai.graph.state.AgentStateFactory} - A factory interface
- * for creating instances of {@link com.alibaba.cloud.ai.graph.state.NodeState}.</li>
+ * for creating instances of {@link com.alibaba.cloud.ai.graph.state.GraphState}.</li>
  * </ul>
  */
 package com.alibaba.cloud.ai.graph.state;

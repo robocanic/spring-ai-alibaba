@@ -19,7 +19,7 @@ package com.alibaba.cloud.ai.graph.node.llm;
 import com.alibaba.cloud.ai.graph.NodeActionDescriptor;
 import com.alibaba.cloud.ai.graph.action.NodeAction;
 import com.alibaba.cloud.ai.graph.node.AbstractNode;
-import com.alibaba.cloud.ai.graph.state.NodeState;
+import com.alibaba.cloud.ai.graph.state.GraphState;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.model.ChatModel;
@@ -36,7 +36,7 @@ import java.util.stream.Collectors;
  * @author 北极星
  * TODO add chat memory
  */
-public class LLMNodeAction extends AbstractNode implements NodeAction {
+public class LLMNodeAction extends AbstractNode implements NodeAction<Map<String, Object>, Map<String,Object>> {
 
     public static final String DEFAULT_OUTPUT_KEY = "text";
 
@@ -58,7 +58,7 @@ public class LLMNodeAction extends AbstractNode implements NodeAction {
     }
 
     @Override
-    public Map<String, Object> apply (NodeState state) throws Exception {
+    public Map<String, Object> apply (Map<String,Object> state) throws Exception {
         Map<String, Object> partialState = reduceState(state);
          List<Message> messages = renderPromptTemplates(partialState, promptTemplates);
         List<Generation> generations = chatClient.prompt().messages(messages).call().chatResponse().getResults();
@@ -71,13 +71,13 @@ public class LLMNodeAction extends AbstractNode implements NodeAction {
      * @param state global state
      * @return partial state
      */
-    private Map<String, Object> reduceState(NodeState state){
+    private Map<String, Object> reduceState(Map<String, Object> state){
         if (nodeActionDescriptor.getInputSchema().isEmpty()){
-            return state.data();
+            return state;
         }
         return nodeActionDescriptor.getInputSchema()
                 .stream()
-                .collect(Collectors.toMap(inputKey -> inputKey, inputKey -> state.value(inputKey, () -> "")));
+                .collect(Collectors.toMap(inputKey -> inputKey, inputKey -> state.getOrDefault(inputKey, "")));
     }
 
     /**

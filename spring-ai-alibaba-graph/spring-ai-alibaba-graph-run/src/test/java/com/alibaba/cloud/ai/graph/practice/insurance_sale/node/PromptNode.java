@@ -1,7 +1,7 @@
 package com.alibaba.cloud.ai.graph.practice.insurance_sale.node;
 
 import com.alibaba.cloud.ai.graph.action.NodeAction;
-import com.alibaba.cloud.ai.graph.state.NodeState;
+import com.alibaba.cloud.ai.graph.state.GraphState;
 import org.springframework.util.StringUtils;
 
 import java.util.Map;
@@ -26,7 +26,7 @@ public class PromptNode implements NodeAction {
 	private final String template;
 
 	@Override
-	public Map<String, Object> apply(NodeState agentState) {
+	public Map<String, Object> apply(GraphState agentState) {
 		Pattern pattern = Pattern.compile("#\\{(.*?)\\}");
 		Matcher matcher = pattern.matcher(template);
 		StringBuilder sb = new StringBuilder();
@@ -53,7 +53,7 @@ public class PromptNode implements NodeAction {
 		matcher.appendTail(sb);
 		String content = anyFind ? sb.toString() : template;
 
-		return Map.of(NodeState.OUTPUT, content);
+		return Map.of(GraphState.OUTPUT, content);
 	}
 
 }

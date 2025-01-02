@@ -2,11 +2,11 @@ package com.alibaba.cloud.ai.graph;
 
 import lombok.Value;
 import lombok.experimental.Accessors;
-import com.alibaba.cloud.ai.graph.state.NodeState;
+import com.alibaba.cloud.ai.graph.state.GraphState;
 
 @Value
 @Accessors(fluent = true)
-public class EdgeValue<State extends NodeState> {
+public class EdgeValue<State extends GraphState> {
 
 	/**
 	 * The unique identifier for the edge value.

@@ -1,9 +1,10 @@
 package com.alibaba.cloud.ai.graph.serializer.agent;
 
 import com.alibaba.cloud.ai.graph.serializer.plain_text.PlainTextStateSerializer;
-import com.alibaba.cloud.ai.graph.state.NodeState;
+import com.alibaba.cloud.ai.graph.state.GraphState;
 import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import com.fasterxml.jackson.annotation.PropertyAccessor;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.module.SimpleModule;
 import lombok.NonNull;
@@ -11,6 +12,7 @@ import lombok.NonNull;
 import java.io.IOException;
 import java.io.ObjectInput;
 import java.io.ObjectOutput;
+import java.util.Map;
 
 public class JSONStateSerializer extends PlainTextStateSerializer {
 
@@ -23,12 +25,12 @@ public class JSONStateSerializer extends PlainTextStateSerializer {
 	}
 
 	public JSONStateSerializer(@NonNull ObjectMapper objectMapper) {
-		super(NodeState::new);
+		super(GraphState::new);
 		this.objectMapper = objectMapper;
 		this.objectMapper.setVisibility(PropertyAccessor.FIELD, JsonAutoDetect.Visibility.ANY);
 
 		var module = new SimpleModule();
-		module.addDeserializer(NodeState.class, new StateDeserializer());
+		module.addDeserializer(GraphState.class, new StateDeserializer());
 		module.addDeserializer(AgentOutcome.class, new AgentOutcomeDeserializer());
 		module.addDeserializer(AgentAction.class, new AgentActionDeserializer());
 		module.addDeserializer(AgentFinish.class, new AgentFinishDeserializer());
@@ -42,15 +44,16 @@ public class JSONStateSerializer extends PlainTextStateSerializer {
 	}
 
 	@Override
-	public void write(NodeState object, ObjectOutput out) throws IOException {
-		var json = objectMapper.writeValueAsString(object);
+	public void write(GraphState object, ObjectOutput out) throws IOException {
+		var json = objectMapper.writeValueAsString(object.data());
 		out.writeUTF(json);
 	}
 
 	@Override
-	public NodeState read(ObjectInput in) throws IOException, ClassNotFoundException {
+	public GraphState read(ObjectInput in) throws IOException, ClassNotFoundException {
 		var json = in.readUTF();
-		return objectMapper.readValue(json, NodeState.class);
+		Map<String, Object> stateData = objectMapper.readValue(json, new TypeReference<>() {});
+		return new GraphState(stateData);
 	}
 
 }

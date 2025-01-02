@@ -1,5 +1,11 @@
 package com.alibaba.cloud.ai.graph.state;
 
+import com.alibaba.cloud.ai.graph.GraphStateException;
+import com.alibaba.cloud.ai.graph.state.reduce.OverrideReducer;
+import lombok.extern.slf4j.Slf4j;
+
+import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -14,7 +20,8 @@ import static java.util.Optional.ofNullable;
 /**
  * Represents the state of an agent with a map of data.
  */
-public class NodeState {
+@Slf4j
+public class GraphState {
 
 	public static final String INPUT = "input";
 
@@ -28,7 +35,7 @@ public class NodeState {
 	 * Constructs an AgentState with the given initial data.
 	 * @param initData the initial data for the agent state
 	 */
-	public NodeState(Map<String, Object> initData) {
+	public GraphState(Map<String, Object> initData) {
 		this.data = new HashMap<>(initData);
 	}
 
@@ -70,7 +77,7 @@ public class NodeState {
 	 * Merges the current state with a partial state and returns a new state.
 	 * @param partialState the partial state to merge with
 	 * @return a new state resulting from the merge
-	 * @deprecated use {@link #updateState(NodeState, Map)}
+	 * @deprecated use {@link #updateState(GraphState, Map)}
 	 */
 	@Deprecated
 	public final Map<String, Object> mergeWith(Map<String, Object> partialState) {
@@ -111,7 +118,7 @@ public class NodeState {
 		}
 
 		return Stream.concat(state.entrySet().stream(), partialState.entrySet().stream())
-			.collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, NodeState::mergeFunction));
+			.collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, GraphState::mergeFunction));
 	}
 
 	/**
@@ -122,8 +129,38 @@ public class NodeState {
 	 * @return the updated state
 	 * @throws NullPointerException if state is null
 	 */
-	public static Map<String, Object> updateState(NodeState state, Map<String, Object> partialState) {
+	public static Map<String, Object> updateState(GraphState state, Map<String, Object> partialState) {
 		return updateState(state.data(), partialState);
+	}
+
+
+	public static <O> Map<String, Object> updateState(Map<String, Object> state, O outputState) throws GraphStateException {
+		Map<String, Object> partialState = new HashMap<>();
+		for (Field field : outputState.getClass().getFields()) {
+			Reducer reducer;
+			if (field.isAnnotationPresent(ReduceStrategy.class)){
+				ReduceStrategy reduceStrategy = field.getAnnotation(ReduceStrategy.class);
+				// todo put reducers into a map (or integrate with Spring context) to cache reducers
+				Class<? extends Reducer<?>> reducerClass = reduceStrategy.value();
+                try {
+                    reducer = reducerClass.getConstructor().newInstance();
+                } catch (Exception e) {
+                    log.error("Can not construct {}. ", reducerClass.getName(), e);
+					throw new GraphStateException("Can not construct reducer");
+                }
+            }else {
+				reducer = new OverrideReducer();
+			}
+			Object newValue;
+            try {
+				newValue = field.get(outputState);
+            } catch (IllegalAccessException e) {
+				throw new GraphStateException("Can not access " + field.getName());
+            }
+			newValue = reducer.apply(state.get(field.getName()), newValue);
+			partialState.put(field.getName(), newValue);
+		}
+		return updateState(state, partialState);
 	}
 
 }

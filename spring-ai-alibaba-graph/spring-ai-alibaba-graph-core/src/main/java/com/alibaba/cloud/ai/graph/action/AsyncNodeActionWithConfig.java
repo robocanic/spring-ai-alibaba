@@ -1,25 +1,23 @@
 package com.alibaba.cloud.ai.graph.action;
 
 import com.alibaba.cloud.ai.graph.RunnableConfig;
-import com.alibaba.cloud.ai.graph.state.NodeState;
 
-import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.BiFunction;
 
-public interface AsyncNodeActionWithConfig
-		extends BiFunction<NodeState, RunnableConfig, CompletableFuture<Map<String, Object>>> {
+public interface AsyncNodeActionWithConfig<InputState, OutputState>
+		extends BiFunction<InputState, RunnableConfig, CompletableFuture<OutputState>> {
 
 	/**
 	 * Applies this action to the given agent state.
-	 * @param t the agent state
+	 * @param inputState the agent state
 	 * @return a CompletableFuture representing the result of the action
 	 */
-	CompletableFuture<Map<String, Object>> apply(NodeState t, RunnableConfig config);
+	CompletableFuture<OutputState> apply(InputState inputState, RunnableConfig config);
 
-	static AsyncNodeActionWithConfig node_async(NodeActionWithConfig syncAction) {
+	static<T,R> AsyncNodeActionWithConfig<T,R> node_async(NodeActionWithConfig<T,R> syncAction) {
 		return (t, config) -> {
-			CompletableFuture<Map<String, Object>> result = new CompletableFuture<>();
+			CompletableFuture<R> result = new CompletableFuture<>();
 			try {
 				result.complete(syncAction.apply(t, config));
 			}
@@ -35,7 +33,7 @@ public interface AsyncNodeActionWithConfig
 	 * @param action the simple AsyncNodeAction to be adapted
 	 * @return an AsyncNodeActionWithConfig that wraps the given AsyncNodeAction
 	 */
-	static AsyncNodeActionWithConfig of(AsyncNodeAction action) {
+	static <T,R> AsyncNodeActionWithConfig<T,R> of(AsyncNodeAction<T,R> action) {
 		return (t, config) -> action.apply(t);
 	}
 
