@@ -1,4 +1,4 @@
-package com.alibaba.cloud.ai.service.run;
+package com.alibaba.cloud.ai.service.runner.workflow;
 
 import com.alibaba.cloud.ai.graph.action.NodeAction;
 import com.alibaba.cloud.ai.model.workflow.NodeData;
@@ -20,7 +20,7 @@ public interface NodeActionConverter<T extends NodeData> {
     /**
      * Construct {@link NodeAction} from {@link NodeData}
      */
-    NodeAction constructNodeAction(T nodeData, String nodeId);
+    NodeAction constructNodeAction( String nodeId, T nodeData);
 
     /**
      * Deconstruct {@link NodeAction} to {@link NodeData}

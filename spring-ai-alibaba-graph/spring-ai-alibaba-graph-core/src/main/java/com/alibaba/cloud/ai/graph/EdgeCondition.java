@@ -12,7 +12,7 @@ import java.util.Map;
  */
 @Value
 @Accessors(fluent = true)
-class EdgeCondition {
+public class EdgeCondition {
 
 	/**
 	 * The action to be performed asynchronously when the edge condition is met.

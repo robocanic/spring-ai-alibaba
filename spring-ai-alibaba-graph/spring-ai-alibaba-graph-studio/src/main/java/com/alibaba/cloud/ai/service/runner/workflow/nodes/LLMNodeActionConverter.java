@@ -1,4 +1,4 @@
-package com.alibaba.cloud.ai.service.run.workflow.nodes;
+package com.alibaba.cloud.ai.service.runner.workflow.nodes;
 
 import com.alibaba.cloud.ai.graph.action.NodeAction;
 import com.alibaba.cloud.ai.graph.node.llm.LLMNodeAction;
@@ -8,7 +8,7 @@ import com.alibaba.cloud.ai.model.VariableSelector;
 import com.alibaba.cloud.ai.model.VariableType;
 import com.alibaba.cloud.ai.model.workflow.NodeType;
 import com.alibaba.cloud.ai.model.workflow.nodedata.LLMNodeData;
-import com.alibaba.cloud.ai.service.run.NodeActionConverter;
+import com.alibaba.cloud.ai.service.runner.workflow.NodeActionConverter;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.prompt.AssistantPromptTemplate;
 import org.springframework.ai.chat.prompt.ChatOptions;
@@ -33,7 +33,7 @@ public class LLMNodeActionConverter implements NodeActionConverter<LLMNodeData> 
     }
 
     @Override
-    public NodeAction constructNodeAction(LLMNodeData nodeData, String nodeId) {
+    public NodeAction constructNodeAction(String nodeId, LLMNodeData nodeData) {
 //        chatModel = buildModel(nodeData.getModel());
         LLMNodeAction.Builder builder = LLMNodeAction.builder(chatModel);
         List<LLMNodeData.PromptTemplate> promptTemplates = nodeData.getPromptTemplate();

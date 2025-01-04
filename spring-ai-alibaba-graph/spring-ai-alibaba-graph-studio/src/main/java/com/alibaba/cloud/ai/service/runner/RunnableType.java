@@ -1,6 +1,4 @@
-package com.alibaba.cloud.ai.service.run;
-
-import com.alibaba.cloud.ai.exception.NotImplementedException;
+package com.alibaba.cloud.ai.service.runner;
 
 import java.util.Arrays;
 import java.util.Optional;

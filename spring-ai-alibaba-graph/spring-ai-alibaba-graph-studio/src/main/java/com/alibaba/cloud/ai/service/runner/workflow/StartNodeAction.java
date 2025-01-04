@@ -1,4 +1,4 @@
-package com.alibaba.cloud.ai.service.run.workflow;
+package com.alibaba.cloud.ai.service.runner.workflow;
 
 import com.alibaba.cloud.ai.graph.NodeActionDescriptor;
 import com.alibaba.cloud.ai.graph.action.NodeAction;

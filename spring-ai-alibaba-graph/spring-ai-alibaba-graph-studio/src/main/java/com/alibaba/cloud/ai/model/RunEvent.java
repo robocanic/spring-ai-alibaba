@@ -2,12 +2,12 @@ package com.alibaba.cloud.ai.model;
 
 import lombok.Data;
 import lombok.experimental.Accessors;
-import com.alibaba.cloud.ai.service.run.Runner;
-import com.alibaba.cloud.ai.service.run.Runnable;
+import com.alibaba.cloud.ai.service.runner.RunnableEngine;
+import com.alibaba.cloud.ai.service.runner.Runnable;
 import java.util.Map;
 
 /**
- * RunEvent defines a single event emitted by the {@link Runner} and {@link Runnable}.
+ * RunEvent defines a single event emitted by the {@link RunnableEngine} and {@link Runnable}.
  */
 @Data
 @Accessors(chain = true)

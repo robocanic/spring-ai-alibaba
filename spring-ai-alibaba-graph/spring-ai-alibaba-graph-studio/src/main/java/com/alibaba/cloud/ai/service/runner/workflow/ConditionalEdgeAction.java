@@ -1,4 +1,4 @@
-package com.alibaba.cloud.ai.service.run.workflow;
+package com.alibaba.cloud.ai.service.runner.workflow;
 
 import com.alibaba.cloud.ai.exception.NotImplementedException;
 import com.alibaba.cloud.ai.graph.action.EdgeAction;
@@ -9,22 +9,24 @@ import com.alibaba.cloud.ai.model.workflow.Edge;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 public class ConditionalEdgeAction implements EdgeAction{
 
-    private Edge edge;
+    public static final String DEFAULT_CASE_ID = "false";
+    private List<Case> cases;
 
-    private String source;
+    private Map<String, String> targetMap;
 
-    public ConditionalEdgeAction(Edge edge, String source){
-        this.edge = edge;
-        this.source = source;
+    public ConditionalEdgeAction(List<Case> cases, Map<String, String> targetMap){
+        this.targetMap = targetMap;
+        this.cases = cases;
     }
 
 
     @Override
     public String apply(NodeState state) throws Exception {
-        for (Case c : edge.getCases()) {
+        for (Case c : cases) {
             String logicalOperator = c.getLogicalOperator();
             List<Boolean> conditionAsserts = new ArrayList<>();
             for (Case.Condition condition : c.getConditions()) {
@@ -46,11 +48,9 @@ public class ConditionalEdgeAction implements EdgeAction{
                 conditionResult = conditionAsserts.stream().reduce(false, (a, b) -> a || b);
             }
             if (conditionResult){
-                return edge.getTargetMap().get(Edge.getTarget(source, c.getId()));
+                return targetMap.get(c.getId());
             }
         }
-        return edge.getTargetMap().get(Edge.getTarget(source, Edge.DEFAULT_CASE_ID));
+        return targetMap.get(DEFAULT_CASE_ID);
     }
-
-
 }

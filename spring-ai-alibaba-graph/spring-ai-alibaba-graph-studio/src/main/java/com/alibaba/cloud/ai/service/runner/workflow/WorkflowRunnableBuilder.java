@@ -1,11 +1,9 @@
-package com.alibaba.cloud.ai.service.run.workflow;
+package com.alibaba.cloud.ai.service.runner.workflow;
 
 
 import com.alibaba.cloud.ai.exception.NotImplementedException;
-import com.alibaba.cloud.ai.graph.CompileConfig;
-import com.alibaba.cloud.ai.graph.CompiledGraph;
-import com.alibaba.cloud.ai.graph.GraphStateException;
-import com.alibaba.cloud.ai.graph.StateGraph;
+import com.alibaba.cloud.ai.exception.RunFailedException;
+import com.alibaba.cloud.ai.graph.*;
 import com.alibaba.cloud.ai.graph.action.AsyncEdgeAction;
 import com.alibaba.cloud.ai.graph.action.AsyncNodeAction;
 import com.alibaba.cloud.ai.graph.action.NodeAction;
@@ -15,10 +13,10 @@ import com.alibaba.cloud.ai.graph.checkpoint.savers.MemorySaver;
 import com.alibaba.cloud.ai.graph.serializer.agent.JSONStateSerializer;
 import com.alibaba.cloud.ai.model.App;
 import com.alibaba.cloud.ai.model.workflow.*;
-import com.alibaba.cloud.ai.service.dsl.NodeDataConverter;
-import com.alibaba.cloud.ai.service.run.RunnableBuilder;
-import com.alibaba.cloud.ai.service.run.Runnable;
-import com.alibaba.cloud.ai.service.run.RunnableType;
+import com.alibaba.cloud.ai.model.workflow.nodedata.BranchNodeData;
+import com.alibaba.cloud.ai.service.runner.RunnableBuilder;
+import com.alibaba.cloud.ai.service.runner.Runnable;
+import com.alibaba.cloud.ai.service.runner.RunnableType;
 import org.springframework.stereotype.Component;
 
 import java.util.*;
@@ -35,10 +33,10 @@ public class WorkflowRunnableBuilder implements RunnableBuilder<App> {
 
     public final String MESSAGES = stateKey(NamespaceType.WORKFLOW.value(), "messages");
 
-    private List<NodeDataConverter> nodeDataConverters;
+    private List<NodeActionConverter<NodeData>> nodeActionConverters;
 
-    public WorkflowRunnableBuilder(List<NodeDataConverter> nodeDataConverters){
-        this.nodeDataConverters = nodeDataConverters;
+    public WorkflowRunnableBuilder(List<NodeActionConverter<NodeData>> nodeActionConverters){
+        this.nodeActionConverters = nodeActionConverters;
     }
 
     @Override
@@ -94,7 +92,7 @@ public class WorkflowRunnableBuilder implements RunnableBuilder<App> {
         }
         Node startNode = findStart(nodeMap.values());
         graph.addEdge(StateGraph.START, startNode.getId());
-        connectNodes(startNode, nodeMap, edgeMap, graph);
+        connectNextNode(startNode, nodeMap, edgeMap, graph);
         Node endNode = findEnd(nodeMap.values());
         graph.addEdge(endNode.getId(), StateGraph.END);
         return graph;
@@ -119,42 +117,56 @@ public class WorkflowRunnableBuilder implements RunnableBuilder<App> {
             NodeType nodeType = NodeType.fromValue(node.getType()).orElseThrow(
                     ()-> new NotImplementedException("Unsupported NodeType: " + node.getType())
             );
-            NodeDataConverter nodeDataConverter = getNodeDataConverter(nodeType);
+            if (nodeType.equals(NodeType.BRANCH)){
+                continue;
+            }
+            NodeActionConverter<NodeData> nodeDataConverter = getNodeActionConverter(nodeType);
             NodeAction nodeAction = nodeDataConverter.constructNodeAction(node.getId(), node.getData());
             nodeActionMap.put(entry.getKey(), nodeAction);
         }
         return nodeActionMap;
     }
 
-    private NodeDataConverter getNodeDataConverter(NodeType nodeType){
-        return nodeDataConverters.stream()
-                .filter(nodeDataConverter -> nodeDataConverter.supportType(nodeType))
+    private NodeActionConverter<NodeData> getNodeActionConverter(NodeType nodeType){
+        return nodeActionConverters.stream()
+                .filter(c -> c.supportType(nodeType))
                 .findFirst()
                 .orElseThrow(()->new NotImplementedException(nodeType + "is not supported yet"));
     }
 
-    // TODO parallel mode support
-    private void connectNodes(Node current, Map<String, Node> nodeMap, Map<String, List<Edge>> edgeMap, StateGraph graph) throws GraphStateException{
-        if (current.getType().equals(NodeType.END.value()) || !edgeMap.containsKey(current.getId())){
-            return;
+    private EdgeValue connectNextNode(Node current, Map<String, Node> nodeMap, Map<String, List<Edge>> edgeMap, StateGraph graph) throws GraphStateException{
+        if (current.getType().equals(NodeType.END.value())
+                || !edgeMap.containsKey(current.getId())){
+            return new EdgeValue(current.id(), null);
         }
         // remove edge to avoid cycle connect
         List<Edge> edgeList = edgeMap.remove(current.getId());
         if (edgeList == null || edgeList.isEmpty()){
-            return;
+            return new EdgeValue(current.id(), null);
         }
-        Edge edge = edgeList.get(0);
-        if (edge.getType().equals(EdgeType.DIRECT.value())){
-            Node next = nodeMap.get(edge.getTarget());
-            graph.addEdge(current.getId(), next.getId());
-            connectNodes(next, nodeMap, edgeMap, graph);
-        }else {
-            ConditionalEdgeAction conditionalEdgeAction = new ConditionalEdgeAction(edge, current.getId());
-            graph.addConditionalEdges(current.getId(), AsyncEdgeAction.edge_async(conditionalEdgeAction), edge.getTargetMap());
-            for (String targetNodeId : edge.getTargetMap().values()) {
-                Node next = nodeMap.get(targetNodeId);
-                connectNodes(next, nodeMap, edgeMap, graph);
+        // TODO parallel mode support
+        if (edgeList.size() > 1 && !current.getType().equals(NodeType.BRANCH.value())){
+            throw new RunFailedException("Parallel mode is not supported yet");
+        }
+        if (current.getType().equals(NodeType.BRANCH.value())){
+            BranchNodeData branchNodeData = (BranchNodeData) current.getData();
+            Map<String, String> targetMap = edgeList.stream().collect(Collectors.toMap(Edge::getSourceHandle, Edge::getTarget));
+            ConditionalEdgeAction conditionalEdgeAction = new ConditionalEdgeAction(branchNodeData.getCases(), targetMap);
+            for (Edge edge : edgeList) {
+                connectNextNode(nodeMap.get(edge.getTarget()),nodeMap,edgeMap,graph);
             }
+            return new EdgeValue(null, new EdgeCondition(AsyncEdgeAction.edge_async(conditionalEdgeAction), targetMap));
+        }else {
+            for (Edge edge : edgeList) {
+                Node next = nodeMap.get(edge.getTarget());
+                EdgeValue edgeValue = connectNextNode(next, nodeMap, edgeMap, graph);
+                if (edgeValue.value() == null){
+                    graph.addEdge(current.getId(), next.getId());
+                }else {
+                    graph.addConditionalEdges(current.getId(), edgeValue.value().action(), edgeValue.value().mappings());
+                }
+            }
+            return new EdgeValue(current.id(), null);
         }
     }
 

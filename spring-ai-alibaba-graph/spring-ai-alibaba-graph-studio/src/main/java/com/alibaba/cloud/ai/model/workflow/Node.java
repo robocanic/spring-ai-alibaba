@@ -1,7 +1,7 @@
 package com.alibaba.cloud.ai.model.workflow;
 
-import com.alibaba.cloud.ai.service.run.RunnableModel;
-import com.alibaba.cloud.ai.service.run.RunnableType;
+import com.alibaba.cloud.ai.service.runner.RunnableModel;
+import com.alibaba.cloud.ai.service.runner.RunnableType;
 import lombok.Data;
 import lombok.experimental.Accessors;
 
