@@ -25,6 +25,8 @@ import com.alibaba.cloud.ai.graph.action.AsyncNodeActionWithConfig;
 import com.alibaba.cloud.ai.graph.action.Command;
 import com.alibaba.cloud.ai.graph.action.InterruptableAction;
 import com.alibaba.cloud.ai.graph.action.InterruptionMetadata;
+import com.alibaba.cloud.ai.graph.action.NodeActionResult;
+import com.alibaba.cloud.ai.graph.utils.StateFieldScanner;
 import com.alibaba.cloud.ai.graph.exception.RunnableErrors;
 import com.alibaba.cloud.ai.graph.streaming.GraphFlux;
 import com.alibaba.cloud.ai.graph.streaming.ParallelGraphFlux;
@@ -83,7 +85,7 @@ public class NodeExecutor extends BaseGraphExecutor {
 	 * @return Flux of GraphResponse with execution result
 	 */
 	@Override
-	public Flux<GraphResponse<NodeOutput>> execute(GraphRunnerContext context, AtomicReference<Object> resultValue) {
+	public Flux<GraphResponse<NodeOutput<?>>> execute(GraphRunnerContext context, AtomicReference<Object> resultValue) {
 		return executeNode(context, resultValue);
 	}
 
@@ -93,12 +95,12 @@ public class NodeExecutor extends BaseGraphExecutor {
 	 * @param resultValue the atomic reference to store the result value
 	 * @return Flux of GraphResponse with node execution result
 	 */
-	private Flux<GraphResponse<NodeOutput>> executeNode(GraphRunnerContext context,
+	private Flux<GraphResponse<NodeOutput<?>>> executeNode(GraphRunnerContext context,
 			AtomicReference<Object> resultValue) {
 		try {
 			context.setCurrentNodeId(context.getNextNodeId());
 			String currentNodeId = context.getCurrentNodeId();
-			AsyncNodeActionWithConfig action = context.getNodeAction(currentNodeId);
+			AsyncNodeActionWithConfig<?> action = context.getNodeAction(currentNodeId);
 
 			if (action == null) {
 				return Flux.just(GraphResponse.error(RunnableErrors.missingNode.exception(currentNodeId)));
@@ -112,7 +114,7 @@ public class NodeExecutor extends BaseGraphExecutor {
 						throw new RuntimeException();
 					}
 				});
-				Optional<InterruptionMetadata> interruptMetadata = ((InterruptableAction) action)
+				Optional<InterruptionMetadata<?>> interruptMetadata = ((InterruptableAction<?>) action)
 					.interrupt(currentNodeId, context.cloneState(context.getCurrentStateData()), context.getConfig());
 				if (interruptMetadata.isPresent()) {
 					resultValue.set(interruptMetadata.get());
@@ -121,12 +123,14 @@ public class NodeExecutor extends BaseGraphExecutor {
 			}
 
 			context.doListeners(NODE_BEFORE, null);
-
-			CompletableFuture<Map<String, Object>> future = action.apply(context.getOverallState(),
-					context.getConfig());
-
-			return Mono.fromFuture(future)
-					.flatMapMany(updateState -> handleActionResult(context, updateState, resultValue))
+			
+			@SuppressWarnings("unchecked")
+			CompletableFuture<NodeActionResult<?>> actionFuture =
+					(CompletableFuture<NodeActionResult<?>>) (CompletableFuture<?>) action.apply(
+							context.getOverallState(), context.getConfig());
+			
+			return Mono.fromFuture(actionFuture)
+					.flatMapMany(actionResult -> handleActionResult(context, actionResult, resultValue))
 					.onErrorResume(error -> {
 						context.doListeners(ERROR, new Exception(error));
 						return Flux.just(GraphResponse.error(error));
@@ -139,18 +143,47 @@ public class NodeExecutor extends BaseGraphExecutor {
 	}
 
 	/**
+	 * Resolves the delta {@code Map<String, Object>} from a {@link NodeActionResult}.
+	 * <ul>
+	 *   <li>Legacy path ({@code hasLegacyDelta()}): returns the explicit delta map directly.</li>
+	 *   <li>POJO streaming path ({@code hasStreamingFlux()}): builds a map from non-null fields
+	 *       and places the streaming flux under the {@code @StateField(streaming=true)} key.</li>
+	 *   <li>POJO non-streaming path: converts non-null fields via {@link StateFieldScanner#toMap}.</li>
+	 * </ul>
+	 */
+	@SuppressWarnings({ "unchecked", "rawtypes" })
+	private static Map<String, Object> resolveUpdateMap(NodeActionResult<?> result) {
+		if (result.hasLegacyDelta()) {
+			return result.legacyDelta();
+		}
+		if (result.hasStreamingFlux()) {
+			// POJO streaming path: combine non-null state fields with the streaming flux
+			Map<String, Object> map = new java.util.HashMap<>(StateFieldScanner.toMap(result.state()));
+			String streamingKey = StateFieldScanner.getStreamingFieldKey((Class) result.state().getClass());
+			if (streamingKey != null) {
+				map.put(streamingKey, result.streamingFlux());
+			}
+			return map;
+		}
+		// POJO non-streaming path: all non-null fields
+		return StateFieldScanner.toMap(result.state());
+	}
+
+	/**
 	 * Handles the action result and returns appropriate response.
 	 * @param context the graph runner context
-	 * @param updateState the updated state from the action
+	 * @param actionResult the action result from the node action
 	 * @param resultValue the atomic reference to store the result value
 	 * @return Flux of GraphResponse with action result handling
 	 */
-	private Flux<GraphResponse<NodeOutput>> handleActionResult(GraphRunnerContext context,
-			Map<String, Object> updateState, AtomicReference<Object> resultValue) {
+	private Flux<GraphResponse<NodeOutput<?>>> handleActionResult(GraphRunnerContext context,
+			NodeActionResult<?> actionResult, AtomicReference<Object> resultValue) {
 		try {
+			// Extract the delta map from the action result
+			Map<String, Object> updateState = resolveUpdateMap(actionResult);
 
 			// Check for Flux
-			Optional<Flux<GraphResponse<NodeOutput>>> embedFlux = getEmbedFlux(context, updateState);
+			Optional<Flux<GraphResponse<NodeOutput<?>>>> embedFlux = getEmbedFlux(context, updateState);
 			if (embedFlux.isPresent()) {
 				return handleEmbeddedFlux(mainGraphExecutor, context, embedFlux.get(), updateState, resultValue);
 			}
@@ -173,7 +206,7 @@ public class NodeExecutor extends BaseGraphExecutor {
 			if (action instanceof InterruptableAction) {
 				Optional<InterruptionMetadata> interruptMetadata = ((InterruptableAction) action)
 					.interruptAfter(currentNodeId, context.cloneState(context.getCurrentStateData()),
-						updateState, context.getConfig());
+						actionResult, context.getConfig());
 				if (interruptMetadata.isPresent()) {
 					// Merge state first to ensure correct state on resume
 					context.mergeIntoCurrentState(updateState);
@@ -505,17 +538,17 @@ public class NodeExecutor extends BaseGraphExecutor {
 	 * @param resultValue the atomic reference to store the result value
 	 * @return Flux of GraphResponse with processed result
 	 */
-	private Flux<GraphResponse<NodeOutput>> processGraphResponseFlux(
+	private Flux<GraphResponse<NodeOutput<?>>> processGraphResponseFlux(
 			MainGraphExecutor mainGraphExecutor, GraphRunnerContext context,
-			Flux<GraphResponse<NodeOutput>> embedFlux, Map<String, Object> partialState,
+			Flux<GraphResponse<NodeOutput<?>>> embedFlux, Map<String, Object> partialState,
 			AtomicReference<Object> resultValue) {
-		AtomicReference<GraphResponse<NodeOutput>> lastData = new AtomicReference<>();
+		AtomicReference<GraphResponse<NodeOutput<?>>> lastData = new AtomicReference<>();
 
-		Flux<GraphResponse<NodeOutput>> processedFlux = embedFlux.map(data -> {
+		Flux<GraphResponse<NodeOutput<?>>> processedFlux = embedFlux.map(data -> {
 				if (data.getOutput() != null && !data.getOutput().isCompletedExceptionally()) {
 					var output = data.getOutput().join();
 					output.setSubGraph(true);
-					GraphResponse<NodeOutput> newData = GraphResponse.of(output);
+					GraphResponse<NodeOutput<?>> newData = GraphResponse.of(output);
 					lastData.set(newData);
 					return newData;
 				}
@@ -594,7 +627,7 @@ public class NodeExecutor extends BaseGraphExecutor {
 	 * @param partialState the partial state containing flux instances
 	 * @return an Optional containing Data with the flux if found, empty otherwise
 	 */
-	public Optional<Flux<GraphResponse<NodeOutput>>> getEmbedFlux(GraphRunnerContext context,
+	public Optional<Flux<GraphResponse<NodeOutput<?>>>> getEmbedFlux(GraphRunnerContext context,
 			Map<String, Object> partialState) {
 		return partialState.entrySet().stream().filter(e -> e.getValue() instanceof Flux<?>).findFirst().map(e -> {
 			var chatFlux = (Flux<?>) e.getValue();
@@ -610,8 +643,8 @@ public class NodeExecutor extends BaseGraphExecutor {
 	 * @param resultValue the atomic reference to store the result value
 	 * @return Flux of GraphResponse with embedded flux handling result
 	 */
-	public Flux<GraphResponse<NodeOutput>> handleEmbeddedFlux(MainGraphExecutor mainGraphExecutor, GraphRunnerContext context,
-			Flux<GraphResponse<NodeOutput>> embedFlux, Map<String, Object> partialState,
+	public Flux<GraphResponse<NodeOutput<?>>> handleEmbeddedFlux(MainGraphExecutor mainGraphExecutor, GraphRunnerContext context,
+			Flux<GraphResponse<NodeOutput<?>>> embedFlux, Map<String, Object> partialState,
 			AtomicReference<Object> resultValue) {
 		return processGraphResponseFlux(mainGraphExecutor, context, embedFlux, partialState, resultValue);
 	}
@@ -778,7 +811,10 @@ public class NodeExecutor extends BaseGraphExecutor {
 
 		try {
 			OverAllState stateBeforeMerge = context.cloneState(context.getCurrentStateData());
-			return interruptableAction.interruptAfter(currentNodeId, stateBeforeMerge, actionResult,
+			// Wrap the Map delta into a NodeActionResult so that interruptAfter receives the correct type
+			NodeActionResult<OverAllState> wrappedResult =
+					NodeActionResult.ofLegacy(stateBeforeMerge, actionResult);
+			return interruptableAction.interruptAfter(currentNodeId, stateBeforeMerge, wrappedResult,
 					context.getConfig());
 		}
 		catch (Exception e) {

@@ -15,18 +15,20 @@
  */
 package com.alibaba.cloud.ai.graph.action;
 
+import com.alibaba.cloud.ai.graph.GraphState;
+
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 
 /**
- * Represents a command that can route to multiple nodes for parallel execution.
- * This is used when a conditional edge action returns multiple target nodes.
+ * Represents a command that can route to multiple nodes for parallel execution. This is
+ * used when a conditional edge action returns multiple target nodes.
  *
+ * @param <S> the concrete graph state type
  * @param gotoNodes A list of node identifiers to execute in parallel
- * @param update A map containing key-value pairs representing updates to be merged into the current state
+ * @param update optional partial state POJO; {@code null} means no state change
  */
-public record MultiCommand(List<String> gotoNodes, Map<String, Object> update) {
+public record MultiCommand<S extends GraphState>(List<String> gotoNodes, S update) {
 
 	public MultiCommand {
 		Objects.requireNonNull(gotoNodes, "gotoNodes cannot be null");
@@ -37,12 +39,12 @@ public record MultiCommand(List<String> gotoNodes, Map<String, Object> update) {
 	}
 
 	/**
-	 * Constructs a MultiCommand that specifies only the next nodes to transition to,
-	 * with no state updates.
+	 * Constructs a MultiCommand that specifies only the next nodes to transition to, with
+	 * no state updates.
 	 * @param gotoNodes The list of nodes to transition to. Cannot be empty.
 	 */
 	public MultiCommand(List<String> gotoNodes) {
-		this(gotoNodes, Map.of());
+		this(gotoNodes, null);
 	}
 
 	/**
@@ -58,11 +60,12 @@ public record MultiCommand(List<String> gotoNodes, Map<String, Object> update) {
 	 * @return a Command instance if this is a single node, otherwise throws an exception
 	 * @throws IllegalStateException if this MultiCommand contains multiple nodes
 	 */
-	public Command toCommand() {
+	public Command<S> toCommand() {
 		if (!isSingleNode()) {
 			throw new IllegalStateException("Cannot convert MultiCommand with multiple nodes to Command");
 		}
-		return new Command(gotoNodes.get(0), update);
+		return new Command<>(gotoNodes.get(0), update);
 	}
+
 }
 

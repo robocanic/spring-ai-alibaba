@@ -26,14 +26,16 @@ import static java.lang.String.format;
 /**
  * Represents the output of a node in a graph.
  *
+ * @param <S> the concrete graph state type
  */
-public class NodeOutput {
+public class NodeOutput<S extends GraphState> {
 
 	/**
-	 * Build NodeOutput with chat response for after node processing
+	 * Build NodeOutput with chat response for after node processing.
+	 * @param <S> the concrete graph state type
 	 */
-	public static NodeOutput of(String node, String agentName, OverAllState state, Usage tokenUsage) {
-		return new NodeOutput(node, agentName, tokenUsage, state);
+	public static <S extends GraphState> NodeOutput<S> of(String node, String agentName, S state, Usage tokenUsage) {
+		return new NodeOutput<>(node, agentName, tokenUsage, state);
 	}
 
 	/**
@@ -44,17 +46,17 @@ public class NodeOutput {
 	protected String agent;
 
 	protected Usage tokenUsage;
+
 	/**
 	 * The state associated with the node.
 	 */
-	protected final OverAllState state;
+	protected final S state;
 
 	protected boolean subGraph = false;
 
 	/**
 	 * Checks if the current node refers to the start of the graph processing.
-	 * @return {@code true} if the current node refers to the start of the graph
-	 * processing
+	 * @return {@code true} if the current node refers to the start of the graph processing
 	 */
 	public boolean isSTART() {
 		return Objects.equals(node(), START);
@@ -73,7 +75,7 @@ public class NodeOutput {
 		return subGraph;
 	}
 
-	public NodeOutput setSubGraph(boolean subGraph) {
+	public NodeOutput<S> setSubGraph(boolean subGraph) {
 		this.subGraph = subGraph;
 		return this;
 	}
@@ -94,24 +96,24 @@ public class NodeOutput {
 		return tokenUsage;
 	}
 
-	public OverAllState state() {
+	public S state() {
 		return state;
 	}
 
-	protected NodeOutput(String node, String agentName, OverAllState state) {
+	protected NodeOutput(String node, String agentName, S state) {
 		this.node = node;
 		this.agent = agentName;
 		this.state = state;
 	}
 
-	protected NodeOutput(String node, String agentName, Usage tokenUsage, OverAllState state) {
+	protected NodeOutput(String node, String agentName, Usage tokenUsage, S state) {
 		this.node = node;
 		this.agent = agentName;
 		this.state = state;
 		this.tokenUsage = tokenUsage;
 	}
 
-	protected NodeOutput(String node, OverAllState state) {
+	protected NodeOutput(String node, S state) {
 		this.node = node;
 		this.state = state;
 	}

@@ -15,28 +15,39 @@
  */
 package com.alibaba.cloud.ai.graph.action;
 
-import com.alibaba.cloud.ai.graph.OverAllState;
+import com.alibaba.cloud.ai.graph.GraphState;
 import com.alibaba.cloud.ai.graph.RunnableConfig;
 import io.opentelemetry.context.Context;
 
-import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.BiFunction;
 
-public interface AsyncNodeActionWithConfig
-		extends BiFunction<OverAllState, RunnableConfig, CompletableFuture<Map<String, Object>>> {
+/**
+ * Asynchronous node action with access to {@link RunnableConfig}.
+ *
+ * @param <S> the concrete graph state type
+ */
+public interface AsyncNodeActionWithConfig<S extends GraphState>
+		extends BiFunction<S, RunnableConfig, CompletableFuture<NodeActionResult<S>>> {
 
 	/**
 	 * Applies this action to the given agent state.
 	 * @param state the agent state
+	 * @param config the runnable configuration
 	 * @return a CompletableFuture representing the result of the action
 	 */
-	CompletableFuture<Map<String, Object>> apply(OverAllState state, RunnableConfig config);
+	CompletableFuture<NodeActionResult<S>> apply(S state, RunnableConfig config);
 
-	static AsyncNodeActionWithConfig node_async(NodeActionWithConfig syncAction) {
+	/**
+	 * Creates an async node action with config from a synchronous one.
+	 * @param <S> the concrete graph state type
+	 * @param syncAction the synchronous action
+	 * @return an async wrapper
+	 */
+	static <S extends GraphState> AsyncNodeActionWithConfig<S> node_async(NodeActionWithConfig<S> syncAction) {
 		return (state, config) -> {
 			Context context = Context.current();
-			CompletableFuture<Map<String, Object>> result = new CompletableFuture<>();
+            CompletableFuture<NodeActionResult<S>> result = new CompletableFuture<>();
 			try {
 				result.complete(syncAction.apply(state, config));
 			}
@@ -48,40 +59,43 @@ public interface AsyncNodeActionWithConfig
 	}
 
 	/**
-	 * Adapts a simple AsyncNodeAction to an AsyncNodeActionWithConfig.
-	 * @param action the simple AsyncNodeAction to be adapted
-	 * @return an AsyncNodeActionWithConfig that wraps the given AsyncNodeAction
+	 * Adapts a simple {@link AsyncNodeAction} to an {@link AsyncNodeActionWithConfig}.
+	 * @param <S> the concrete graph state type
+	 * @param action the simple action to be adapted
+	 * @return an {@link AsyncNodeActionWithConfig} that wraps the given action
 	 */
-	static AsyncNodeActionWithConfig of(AsyncNodeAction action) {
+	static <S extends GraphState> AsyncNodeActionWithConfig<S> of(AsyncNodeAction<S> action) {
 		if (action instanceof InterruptableAction) {
-			return new InterruptableAsyncNodeActionWrapper(action, (InterruptableAction) action);
+			return new InterruptableAsyncNodeActionWrapper<>(action, (InterruptableAction<S>) action);
 		}
 		return (t, config) -> action.apply(t);
 	}
 
-	class InterruptableAsyncNodeActionWrapper implements AsyncNodeActionWithConfig, InterruptableAction {
+	class InterruptableAsyncNodeActionWrapper<S extends GraphState>
+			implements AsyncNodeActionWithConfig<S>, InterruptableAction<S> {
 
-		private final AsyncNodeAction delegate;
-		private final InterruptableAction interruptable;
+		private final AsyncNodeAction<S> delegate;
 
-		public InterruptableAsyncNodeActionWrapper(AsyncNodeAction delegate, InterruptableAction interruptable) {
+		private final InterruptableAction<S> interruptable;
+
+		public InterruptableAsyncNodeActionWrapper(AsyncNodeAction<S> delegate, InterruptableAction<S> interruptable) {
 			this.delegate = delegate;
 			this.interruptable = interruptable;
 		}
 
 		@Override
-		public CompletableFuture<Map<String, Object>> apply(OverAllState state, RunnableConfig config) {
+		public CompletableFuture<NodeActionResult<S>> apply(S state, RunnableConfig config) {
 			return delegate.apply(state);
 		}
 
 		@Override
-		public java.util.Optional<InterruptionMetadata> interrupt(String nodeId, OverAllState state, RunnableConfig config) {
+		public java.util.Optional<InterruptionMetadata> interrupt(String nodeId, S state, RunnableConfig config) {
 			return interruptable.interrupt(nodeId, state, config);
 		}
 
 		@Override
-		public java.util.Optional<InterruptionMetadata> interruptAfter(String nodeId, OverAllState state,
-				Map<String, Object> actionResult, RunnableConfig config) {
+		public java.util.Optional<InterruptionMetadata> interruptAfter(String nodeId, S state,
+				NodeActionResult<S> actionResult, RunnableConfig config) {
 			return interruptable.interruptAfter(nodeId, state, actionResult, config);
 		}
 	}

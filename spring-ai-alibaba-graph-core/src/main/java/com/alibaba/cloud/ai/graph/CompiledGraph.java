@@ -55,7 +55,7 @@ import static java.util.stream.Collectors.toList;
 /**
  * The type Compiled graph.
  */
-public class CompiledGraph {
+public class CompiledGraph<S extends GraphState> {
 
 	private static final Logger log = LoggerFactory.getLogger(CompiledGraph.class);
 
@@ -64,18 +64,18 @@ public class CompiledGraph {
 	/**
 	 * The State graph.
 	 */
-	public final StateGraph stateGraph;
+	public final StateGraph<S> stateGraph;
 
 	/**
 	 * The Compile config.
 	 */
-	public final CompileConfig compileConfig;
+	public final CompileConfig<S> compileConfig;
 
 	/**
 	 * The Node Factories - stores factory functions instead of instances to ensure
 	 * thread safety.
 	 */
-	final Map<String, Node.ActionFactory> nodeFactories = new LinkedHashMap<>();
+	final Map<String, Node.ActionFactory<S>> nodeFactories = new LinkedHashMap<>();
 
 	/**
 	 * The Edges.
@@ -84,7 +84,7 @@ public class CompiledGraph {
 
 	private final Map<String, KeyStrategy> keyStrategyMap;
 
-	private final ProcessedNodesEdgesAndConfig processedData;
+	private final ProcessedNodesEdgesAndConfig<S> processedData;
 
 	private int maxIterations = 25;
 
@@ -95,7 +95,7 @@ public class CompiledGraph {
 	 * @param compileConfig the compile config
 	 * @throws GraphStateException the graph state exception
 	 */
-	protected CompiledGraph(StateGraph stateGraph, CompileConfig compileConfig) throws GraphStateException {
+	protected CompiledGraph(StateGraph<S> stateGraph, CompileConfig<S> compileConfig) throws GraphStateException {
 		this.maxIterations = compileConfig.recursionLimit();
 		this.stateGraph = stateGraph;
 
@@ -136,7 +136,7 @@ public class CompiledGraph {
 		// STORE NODE FACTORIES - for thread safety, we store factories instead of
 		// instances
 		for (var n : processedData.nodes().elements) {
-			var factory = n.actionFactory();
+			Node.ActionFactory<S> factory = n.actionFactory();
 			Objects.requireNonNull(factory, format("action factory for node id '%s' is null!", n.id()));
 			nodeFactories.put(n.id(), factory);
 		}
@@ -152,7 +152,7 @@ public class CompiledGraph {
 					// Check if this is a multi-command action (returns multiple nodes)
 					if (edgeCondition.isMultiCommand()) {
 						// Multi-command action - create ConditionalParallelNode for parallel execution
-						var conditionalParallelNode = new ConditionalParallelNode(
+						var conditionalParallelNode = new ConditionalParallelNode<>(
 								e.sourceId(),
 								edgeCondition,
 								nodeFactories,
@@ -237,7 +237,7 @@ public class CompiledGraph {
 				var actionNodeIds = targetList.stream().map(EdgeValue::id).toList();
 
 				var targetNodeId = parallelNodeTargets.iterator().next();
-				var parallelNode = new ParallelNode(e.sourceId(), targetNodeId, actions, actionNodeIds, keyStrategyMap,
+				var parallelNode = new ParallelNode<>(e.sourceId(), targetNodeId, actions, actionNodeIds, keyStrategyMap,
 						compileConfig);
 
 				nodeFactories.put(parallelNode.id(), parallelNode.actionFactory());
@@ -250,13 +250,13 @@ public class CompiledGraph {
 		}
 	}
 
-	public Collection<StateSnapshot> getStateHistory(RunnableConfig config) {
+	public Collection<StateSnapshot<S>> getStateHistory(RunnableConfig config) {
 		BaseCheckpointSaver saver = compileConfig.checkpointSaver()
 				.orElseThrow(() -> (new IllegalStateException("Missing CheckpointSaver!")));
 
 		return saver.list(config)
 				.stream()
-				.map(checkpoint -> StateSnapshot.of(keyStrategyMap, checkpoint, config, stateGraph.getStateFactory()))
+				.map(checkpoint -> StateSnapshot.of(checkpoint, config, stateGraph.getStateFactory()))
 				.collect(toList());
 	}
 
@@ -319,7 +319,11 @@ public class CompiledGraph {
 			var nextNodeCommand = nextNodeId(asNode, branchCheckpoint.getState(), config);
 
 			nextNodeId = nextNodeCommand.gotoNode();
-			branchCheckpoint = branchCheckpoint.updateState(nextNodeCommand.update(), keyStrategyMap);
+			// update() is OverAllState (or null) after generification; extract data map
+			Object cmdUpdate = nextNodeCommand.update();
+			if (cmdUpdate instanceof OverAllState os) {
+				branchCheckpoint = branchCheckpoint.updateState(os.data(), keyStrategyMap);
+			}
 
 		}
 		// update checkpoint in saver
@@ -350,7 +354,7 @@ public class CompiledGraph {
 	 */
 	private Set<String> findParallelNodeTargets(Set<String> sourceNodeIds) {
 		var parallelNodeEdges = sourceNodeIds.stream()
-				.map(nodeId -> new Edge(nodeId))  // Create Edge object with nodeId as source
+				.map(Edge::new)  // Create Edge object with nodeId as source
 				.filter(ee -> processedData.edges().elements.contains(ee))
 				.map(ee -> processedData.edges().elements.indexOf(ee))
 				.map(index -> processedData.edges().elements.get(index))
@@ -363,14 +367,15 @@ public class CompiledGraph {
 	}
 
 
-	private Command nextNodeId(EdgeValue route, Map<String, Object> state, String nodeId, RunnableConfig config)
+	private Command<S> nextNodeId(EdgeValue route, Map<String, Object> state, String nodeId, RunnableConfig config)
 			throws Exception {
 
 		if (route == null) {
 			throw RunnableErrors.missingEdge.exception(nodeId);
 		}
 		if (route.id() != null) {
-			return new Command(route.id(), state);
+			// Routing-only: callers only use gotoNode(), update is not needed here
+			return new Command<>(route.id(), null);
 		}
 		if (route.value() != null) {
 			OverAllState derefState = stateGraph.getStateFactory().apply(state);
@@ -378,13 +383,15 @@ public class CompiledGraph {
 
 			// Check if this is a multi-command action
 			if (edgeCondition.isMultiCommand()) {
-				// Multi-command action - route to ConditionalParallelNode
+				// Multi-command action - route to ConditionalParallelNode (routing-only)
 				String conditionalParallelNodeId = ParallelNode.formatNodeId(nodeId);
-				return new Command(conditionalParallelNodeId, state);
+				return new Command<>(conditionalParallelNodeId, null);
 			} else {
 				// Single Command action
 				var singleAction = edgeCondition.singleAction();
-				var command = singleAction.apply(derefState, config).get();
+				@SuppressWarnings("unchecked")
+				var cf = (java.util.concurrent.CompletableFuture<?>) singleAction.apply(derefState, config);
+				var command = (Command<?>) cf.get();
 
 				var newRoute = command.gotoNode();
 				String result = route.value().mappings().get(newRoute);
@@ -392,8 +399,14 @@ public class CompiledGraph {
 					throw RunnableErrors.missingNodeInEdgeMapping.exception(nodeId, newRoute);
 				}
 
-				var currentState = OverAllState.updateState(state, command.update(), keyStrategyMap);
-				return new Command(result, currentState);
+				// Merge command's state update (if any) into the state map
+				Map<String, Object> updatedMap = state;
+				Object cmdUpdate = command.update();
+				if (cmdUpdate instanceof OverAllState os) {
+					updatedMap = OverAllState.updateState(state, os.data(), keyStrategyMap);
+				}
+				OverAllState updatedState = stateGraph.getStateFactory().apply(updatedMap);
+				return new Command<>(result, updatedState);
 			}
 		}
 		throw RunnableErrors.executionError.exception(format("invalid edge value for nodeId: [%s] !", nodeId));
@@ -471,8 +484,9 @@ public class CompiledGraph {
 	 */
 	OverAllState cloneState(Map<String, Object> data, OverAllState overAllState)
 			throws IOException, ClassNotFoundException {
-		return new OverAllState(stateGraph.getStateSerializer().cloneObject(data).data(), overAllState.keyStrategies(),
-				overAllState.getStore());
+		Map<String, Object> cloned = stateGraph.getStateSerializer()
+				.dataFromBytes(stateGraph.getStateSerializer().dataToBytes(data));
+		return new OverAllState(cloned, overAllState.keyStrategies(), overAllState.getStore());
 	}
 
 	/**
@@ -482,7 +496,9 @@ public class CompiledGraph {
 	 * @return the over all state
 	 */
 	public OverAllState cloneState(Map<String, Object> data) throws IOException, ClassNotFoundException {
-		return new OverAllState(stateGraph.getStateSerializer().cloneObject(data).data(), getKeyStrategyMap());
+		Map<String, Object> cloned = stateGraph.getStateSerializer()
+				.dataFromBytes(stateGraph.getStateSerializer().dataToBytes(data));
+		return new OverAllState(cloned, getKeyStrategyMap());
 	}
 
 	/**
@@ -637,7 +653,7 @@ public class CompiledGraph {
 	 * @return an Optional containing the final state
 	 */
 	public Optional<OverAllState> invoke(Map<String, Object> inputs, RunnableConfig config) {
-		return Optional.ofNullable(stream(inputs, config).last().map(NodeOutput::state).block());
+		return Optional.ofNullable(stream(inputs, config).last().map(o -> (OverAllState) o.state()).block());
 	}
 
 	/**
@@ -649,7 +665,7 @@ public class CompiledGraph {
 	 */
 	public Optional<OverAllState> invoke(OverAllState overAllState, RunnableConfig config) {
 		return Optional
-				.ofNullable(streamFromInitialNode(overAllState, config).last().map(NodeOutput::state).block());
+				.ofNullable(streamFromInitialNode(overAllState, config).last().map(o -> (OverAllState) o.state()).block());
 	}
 
 	/**

@@ -39,7 +39,7 @@ public abstract class BaseGraphExecutor {
 	 * @param resultValue the atomic reference to store the result value
 	 * @return Flux of GraphResponse with execution result
 	 */
-	public abstract Flux<GraphResponse<NodeOutput>> execute(GraphRunnerContext context,
+	public abstract Flux<GraphResponse<NodeOutput<?>>> execute(GraphRunnerContext context,
 			AtomicReference<Object> resultValue);
 
 	/**
@@ -49,7 +49,7 @@ public abstract class BaseGraphExecutor {
 	 * @param resultValue the atomic reference to store the result value
 	 * @return Flux of GraphResponse with completion handling result
 	 */
-	protected Flux<GraphResponse<NodeOutput>> handleCompletion(GraphRunnerContext context,
+	protected Flux<GraphResponse<NodeOutput<?>>> handleCompletion(GraphRunnerContext context,
 			AtomicReference<Object> resultValue) {
 		return Flux.defer(() -> {
 			try {

@@ -16,22 +16,23 @@
 
 package com.alibaba.cloud.ai.graph.internal.node;
 
+import com.alibaba.cloud.ai.graph.GraphState;
 import com.alibaba.cloud.ai.graph.KeyStrategy;
 import com.alibaba.cloud.ai.graph.StateGraph;
 import com.alibaba.cloud.ai.graph.SubGraphNode;
 
 import java.util.Map;
 
-public class SubStateGraphNode extends Node implements SubGraphNode {
+public class SubStateGraphNode<S extends GraphState> extends Node<S> implements SubGraphNode {
 
-	private final StateGraph subGraph;
+	private final StateGraph<S> subGraph;
 
-	public SubStateGraphNode(String id, StateGraph subGraph) {
+	public SubStateGraphNode(String id, StateGraph<S> subGraph) {
 		super(id);
 		this.subGraph = subGraph;
 	}
 
-	public StateGraph subGraph() {
+	public StateGraph<S> subGraph() {
 		return subGraph;
 	}
 

@@ -15,18 +15,26 @@
  */
 package com.alibaba.cloud.ai.graph.action;
 
-import com.alibaba.cloud.ai.graph.OverAllState;
+import com.alibaba.cloud.ai.graph.GraphState;
 import com.alibaba.cloud.ai.graph.RunnableConfig;
 
 /**
  * Synchronous version of MultiCommandAction.
- * 
+ *
+ * @param <S> the concrete graph state type
  * @see AsyncMultiCommandAction for the async version
  */
 @FunctionalInterface
-public interface MultiCommandAction {
+public interface MultiCommandAction<S extends GraphState> {
 
-	MultiCommand apply(OverAllState state, RunnableConfig config) throws Exception;
+	/**
+	 * Applies this action to the given state and config.
+	 * @param state the current graph state
+	 * @param config the runnable configuration
+	 * @return a {@link MultiCommand} for routing to multiple nodes
+	 * @throws Exception if an error occurs
+	 */
+	MultiCommand<S> apply(S state, RunnableConfig config) throws Exception;
 
 }
 

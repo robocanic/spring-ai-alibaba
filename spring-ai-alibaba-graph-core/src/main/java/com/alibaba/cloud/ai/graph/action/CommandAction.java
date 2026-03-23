@@ -15,12 +15,24 @@
  */
 package com.alibaba.cloud.ai.graph.action;
 
-import com.alibaba.cloud.ai.graph.OverAllState;
+import com.alibaba.cloud.ai.graph.GraphState;
 import com.alibaba.cloud.ai.graph.RunnableConfig;
 
+/**
+ * Synchronous action that returns a routing {@link Command}.
+ *
+ * @param <S> the concrete graph state type
+ */
 @FunctionalInterface
-public interface CommandAction {
+public interface CommandAction<S extends GraphState> {
 
-	Command apply(OverAllState state, RunnableConfig config) throws Exception;
+	/**
+	 * Applies this action to the given state and config.
+	 * @param state the current graph state
+	 * @param config the runnable configuration
+	 * @return a {@link Command} containing the next node and optional partial update
+	 * @throws Exception if an error occurs
+	 */
+	Command<S> apply(S state, RunnableConfig config) throws Exception;
 
 }

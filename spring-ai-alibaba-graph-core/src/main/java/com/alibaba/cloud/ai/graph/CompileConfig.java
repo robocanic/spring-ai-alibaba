@@ -36,7 +36,7 @@ import static java.util.Optional.ofNullable;
  * includes various fields and methods to manage checkpoint savers and interrupts,
  * providing both deprecated and current accessors.
  */
-public class CompileConfig {
+public class CompileConfig<S extends GraphState> {
 
 	// ================================================================================================================
 	// Configuration Fields
@@ -47,7 +47,7 @@ public class CompileConfig {
 	private Store store;
 
 	private ObservationRegistry observationRegistry = ObservationRegistry.NOOP;
-	private Deque<GraphLifecycleListener> lifecycleListeners = new LinkedBlockingDeque<>(25);
+	private Deque<GraphLifecycleListener<S>> lifecycleListeners = new LinkedBlockingDeque<>(25);
 
 	// private BaseCheckpointSaver checkpointSaver; // replaced with SaverConfig
 	private Set<String> interruptsBefore = Set.of();
@@ -78,7 +78,7 @@ public class CompileConfig {
 	 * Gets an unmodifiable list of node lifecycle listeners.
 	 * @return The list of lifecycle listeners.
 	 */
-	public Queue<GraphLifecycleListener> lifecycleListeners() {
+	public Queue<GraphLifecycleListener<S>> lifecycleListeners() {
 		return lifecycleListeners;
 	}
 
@@ -148,8 +148,8 @@ public class CompileConfig {
 	 * Returns a new instance of the builder with default configuration settings.
 	 * @return A new Builder instance.
 	 */
-	public static Builder builder() {
-		return new Builder(new CompileConfig());
+	public static <S extends GraphState> Builder<S> builder() {
+		return new Builder<>(new CompileConfig<>());
 	}
 
 	/**
@@ -157,27 +157,27 @@ public class CompileConfig {
 	 * @param config The compile configuration to use as a base.
 	 * @return A new Builder instance initialized with the given configuration.
 	 */
-	public static Builder builder(CompileConfig config) {
-		return new Builder(config);
+	public static <S extends GraphState> Builder<S> builder(CompileConfig<S> config) {
+		return new Builder<>(config);
 	}
 
 	/**
 	 * Builder class for creating instances of CompileConfig. It allows setting various
 	 * options such as savers, interrupts, and lifecycle listeners in a fluent manner.
 	 */
-	public static class Builder {
+	public static class Builder<S extends GraphState> {
 
-		private final CompileConfig config;
+		private final CompileConfig<S> config;
 
 		/**
 		 * Initializes the builder with the provided compile configuration.
 		 * @param config The base configuration to start from.
 		 */
-		protected Builder(CompileConfig config) {
-			this.config = new CompileConfig(config);
+		protected Builder(CompileConfig<S> config) {
+			this.config = new CompileConfig<>(config);
 		}
 
-		public Builder recursionLimit(int recursionLimit) {
+		public Builder<S> recursionLimit(int recursionLimit) {
 			if( recursionLimit <= 0 ) {
 				throw new IllegalArgumentException("recursionLimit must be > 0!");
 			}
@@ -191,7 +191,7 @@ public class CompileConfig {
 		 * @see BaseCheckpointSaver#release(RunnableConfig)
 		 * @return This builder instance for method chaining.
 		 */
-		public Builder releaseThread(boolean releaseThread) {
+		public Builder<S> releaseThread(boolean releaseThread) {
 			this.config.releaseThread = releaseThread;
 			return this;
 		}
@@ -201,7 +201,7 @@ public class CompileConfig {
 		 * @param observationRegistry The ObservationRegistry to use.
 		 * @return This builder instance for method chaining.
 		 */
-		public Builder observationRegistry(ObservationRegistry observationRegistry) {
+		public Builder<S> observationRegistry(ObservationRegistry observationRegistry) {
 			this.config.observationRegistry = observationRegistry;
 			return this;
 		}
@@ -211,7 +211,7 @@ public class CompileConfig {
 		 * @param saverConfig The SaverConfig to use.
 		 * @return This builder instance for method chaining.
 		 */
-		public Builder saverConfig(SaverConfig saverConfig) {
+		public Builder<S> saverConfig(SaverConfig saverConfig) {
 			this.config.saverConfig = saverConfig;
 			return this;
 		}
@@ -222,7 +222,7 @@ public class CompileConfig {
 		 * @param interruptBefore One or more strings representing interrupt points.
 		 * @return This builder instance for method chaining.
 		 */
-		public Builder interruptBefore(String... interruptBefore) {
+		public Builder<S> interruptBefore(String... interruptBefore) {
 			this.config.interruptsBefore = Set.of(interruptBefore);
 			return this;
 		}
@@ -233,7 +233,7 @@ public class CompileConfig {
 		 * @param interruptAfter One or more strings representing interrupt points.
 		 * @return This builder instance for method chaining.
 		 */
-		public Builder interruptAfter(String... interruptAfter) {
+		public Builder<S> interruptAfter(String... interruptAfter) {
 			this.config.interruptsAfter = Set.of(interruptAfter);
 			return this;
 		}
@@ -244,7 +244,7 @@ public class CompileConfig {
 		 * @param interruptsBefore Collection of strings representing interrupt points.
 		 * @return This builder instance for method chaining.
 		 */
-		public Builder interruptsBefore(Collection<String> interruptsBefore) {
+		public Builder<S> interruptsBefore(Collection<String> interruptsBefore) {
 			this.config.interruptsBefore = interruptsBefore.stream().collect(Collectors.toUnmodifiableSet());
 			return this;
 		}
@@ -261,7 +261,7 @@ public class CompileConfig {
 		 * otherwise interrupt after.
 		 * @return The current {@code Builder} instance for method chaining.
 		 */
-		public Builder interruptBeforeEdge(boolean interruptBeforeEdge) {
+		public Builder<S> interruptBeforeEdge(boolean interruptBeforeEdge) {
 			this.config.interruptBeforeEdge = interruptBeforeEdge;
 			return this;
 		}
@@ -272,7 +272,7 @@ public class CompileConfig {
 		 * @param interruptsAfter Collection of strings representing interrupt points.
 		 * @return This builder instance for method chaining.
 		 */
-		public Builder interruptsAfter(Collection<String> interruptsAfter) {
+		public Builder<S> interruptsAfter(Collection<String> interruptsAfter) {
 			this.config.interruptsAfter = interruptsAfter.stream().collect(Collectors.toUnmodifiableSet());
 			return this;
 		}
@@ -282,7 +282,7 @@ public class CompileConfig {
 		 * @param listener The NodeLifecycleListener to add.
 		 * @return This builder instance for method chaining.
 		 */
-		public Builder withLifecycleListener(GraphLifecycleListener listener) {
+		public Builder<S> withLifecycleListener(GraphLifecycleListener<S> listener) {
 			this.config.lifecycleListeners.offer(listener);
 			return this;
 		}
@@ -292,7 +292,7 @@ public class CompileConfig {
 		 * @param store The Store instance to use.
 		 * @return This builder instance for method chaining.
 		 */
-		public Builder store(Store store) {
+		public Builder<S> store(Store store) {
 			this.config.store = store;
 			return this;
 		}
@@ -301,7 +301,7 @@ public class CompileConfig {
 		 * Finalizes the configuration and returns the compiled instance.
 		 * @return The configured CompileConfig object.
 		 */
-		public CompileConfig build() {
+		public CompileConfig<S> build() {
 			return config;
 		}
 
@@ -323,7 +323,7 @@ public class CompileConfig {
 	 * Copy constructor to create a new instance based on an existing configuration.
 	 * @param config The configuration to copy.
 	 */
-	private CompileConfig(CompileConfig config) {
+	private CompileConfig(CompileConfig<S> config) {
 		this.saverConfig = config.saverConfig;
 		this.interruptsBefore = config.interruptsBefore;
 		this.interruptsAfter = config.interruptsAfter;

@@ -15,17 +15,15 @@
  */
 package com.alibaba.cloud.ai.graph.state;
 
-import com.alibaba.cloud.ai.graph.KeyStrategy;
+import com.alibaba.cloud.ai.graph.GraphState;
 import com.alibaba.cloud.ai.graph.NodeOutput;
-import com.alibaba.cloud.ai.graph.OverAllState;
 import com.alibaba.cloud.ai.graph.RunnableConfig;
 import com.alibaba.cloud.ai.graph.checkpoint.Checkpoint;
 
-import java.util.Map;
 
 import static java.lang.String.format;
 
-public final class StateSnapshot extends NodeOutput {
+public final class StateSnapshot<S extends GraphState> extends NodeOutput<S> {
 
 	private final RunnableConfig config;
 
@@ -37,7 +35,7 @@ public final class StateSnapshot extends NodeOutput {
 		return config;
 	}
 
-	private StateSnapshot(String node, OverAllState state, RunnableConfig config) {
+	private StateSnapshot(String node, S state, RunnableConfig config) {
 		super(node, state);
 		this.config = config;
 	}
@@ -48,26 +46,14 @@ public final class StateSnapshot extends NodeOutput {
 		return format("StateSnapshot{node=%s, state=%s, config=%s}", node(), state(), config());
 	}
 
-	public static StateSnapshot of(Map<String, KeyStrategy> keyStrategyMap, Checkpoint checkpoint,
-			RunnableConfig config, AgentStateFactory<OverAllState> factory) {
+	public static <S extends GraphState> StateSnapshot<S> of(Checkpoint checkpoint,
+			RunnableConfig config, AgentStateFactory<S> factory) {
 
 		RunnableConfig newConfig = RunnableConfig.builder(config)
 			.checkPointId(checkpoint.getId())
 			.nextNode(checkpoint.getNextNodeId())
 			.build();
-		return new StateSnapshot(checkpoint.getNodeId(),
-				factory.apply(checkpoint.getState()).registerKeyAndStrategy(keyStrategyMap), newConfig);
-	}
-
-	public static StateSnapshot of(OverAllState overAllState, Checkpoint checkpoint, RunnableConfig config,
-			AgentStateFactory<OverAllState> factory) {
-
-		RunnableConfig newConfig = RunnableConfig.builder(config)
-			.checkPointId(checkpoint.getId())
-			.nextNode(checkpoint.getNextNodeId())
-			.build();
-		return new StateSnapshot(checkpoint.getNodeId(),
-				factory.apply(checkpoint.getState()).registerKeyAndStrategy(overAllState.keyStrategies()), newConfig);
+		return new StateSnapshot<>(checkpoint.getNodeId(), factory.apply(checkpoint.getState()), newConfig);
 	}
 
 }

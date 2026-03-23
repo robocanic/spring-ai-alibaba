@@ -17,6 +17,7 @@
 package com.alibaba.cloud.ai.graph.internal.node;
 
 import com.alibaba.cloud.ai.graph.CompileConfig;
+import com.alibaba.cloud.ai.graph.GraphState;
 import com.alibaba.cloud.ai.graph.OverAllState;
 import com.alibaba.cloud.ai.graph.StateGraph;
 import com.alibaba.cloud.ai.graph.action.AsyncNodeActionWithConfig;
@@ -36,21 +37,21 @@ import static java.lang.String.format;
  * {@link OverAllState}.
  *
  */
-public class Node {
+public class Node<S extends GraphState> {
 
 	public static final String PRIVATE_PREFIX = "__";
 
-	public interface ActionFactory {
+	public interface ActionFactory<S extends GraphState> {
 
-		AsyncNodeActionWithConfig apply(CompileConfig config) throws GraphStateException;
+		AsyncNodeActionWithConfig<S> apply(CompileConfig<S> config) throws GraphStateException;
 
 	}
 
 	private final String id;
 
-	private final ActionFactory actionFactory;
+	private final ActionFactory<S> actionFactory;
 
-	public Node(String id, ActionFactory actionFactory) {
+	public Node(String id, ActionFactory<S> actionFactory) {
 		this.id = id;
 		this.actionFactory = actionFactory;
 	}
@@ -90,7 +91,7 @@ public class Node {
 	 * @return a factory function that takes a {@link CompileConfig} and returns an
 	 * {@link AsyncNodeActionWithConfig} instance for the specified {@code State}.
 	 */
-	public ActionFactory actionFactory() {
+	public ActionFactory<S> actionFactory() {
 		return actionFactory;
 	}
 
@@ -99,8 +100,8 @@ public class Node {
 		return false;
 	}
 
-	public Node withIdUpdated(Function<String, String> newId) {
-		return new Node(newId.apply(id), actionFactory);
+	public Node<S> withIdUpdated(Function<String, String> newId) {
+		return new Node<>(newId.apply(id), actionFactory);
 	}
 
 	/**

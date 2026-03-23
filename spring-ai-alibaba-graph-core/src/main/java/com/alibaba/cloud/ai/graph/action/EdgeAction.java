@@ -15,21 +15,22 @@
  */
 package com.alibaba.cloud.ai.graph.action;
 
-import com.alibaba.cloud.ai.graph.OverAllState;
+import com.alibaba.cloud.ai.graph.GraphState;
 
 /**
- * Represents an edge action that operates on an agent state and returns a result.
+ * Represents an edge action that reads the graph state and returns the next node name.
  *
+ * @param <S> the concrete graph state type
  */
 @FunctionalInterface
-public interface EdgeAction {
+public interface EdgeAction<S extends GraphState> {
 
 	/**
 	 * Applies this action to the given agent state.
 	 * @param state the agent state
-	 * @return a result of the action
+	 * @return the name of the next node to execute
 	 * @throws Exception if an error occurs during the action
 	 */
-	String apply(OverAllState state) throws Exception;
+	String apply(S state) throws Exception;
 
 }

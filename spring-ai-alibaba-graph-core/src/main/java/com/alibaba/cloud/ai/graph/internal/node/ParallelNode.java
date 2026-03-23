@@ -16,15 +16,18 @@
 package com.alibaba.cloud.ai.graph.internal.node;
 
 import com.alibaba.cloud.ai.graph.CompileConfig;
+import com.alibaba.cloud.ai.graph.GraphState;
 import com.alibaba.cloud.ai.graph.KeyStrategy;
 import com.alibaba.cloud.ai.graph.NodeAggregationStrategy;
 import com.alibaba.cloud.ai.graph.OverAllState;
 import com.alibaba.cloud.ai.graph.RunnableConfig;
 import com.alibaba.cloud.ai.graph.action.AsyncNodeActionWithConfig;
+import com.alibaba.cloud.ai.graph.action.NodeActionResult;
 import com.alibaba.cloud.ai.graph.streaming.GraphFlux;
 import com.alibaba.cloud.ai.graph.streaming.ParallelGraphFlux;
 import com.alibaba.cloud.ai.graph.utils.LifeListenerUtil;
 
+import com.alibaba.cloud.ai.graph.utils.StateFieldScanner;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Flux;
@@ -52,7 +55,7 @@ import static java.lang.String.format;
 import static java.util.Objects.requireNonNull;
 
 
-public class ParallelNode extends Node {
+public class ParallelNode<S extends GraphState> extends Node<S> {
 	
 	private static final Logger logger = LoggerFactory.getLogger(ParallelNode.class);
 
@@ -279,24 +282,25 @@ public class ParallelNode extends Node {
 	 *                      compile-time settings. Lifecycle listeners are invoked before and after each
 	 *                      parallel branch execution.
 	 */
-	public record AsyncParallelNodeAction(String nodeId, String targetNodeId, List<AsyncNodeActionWithConfig> actions,
-			List<String> actionNodeIds, Map<String, KeyStrategy> channels, CompileConfig compileConfig)
-			implements AsyncNodeActionWithConfig {
+	public record  AsyncParallelNodeAction<S extends GraphState>(String nodeId, String targetNodeId, List<AsyncNodeActionWithConfig<S>> actions,
+			List<String> actionNodeIds, Map<String, KeyStrategy> channels, CompileConfig<S> compileConfig)
+			implements AsyncNodeActionWithConfig<S> {
 
-		private CompletableFuture<Map<String, Object>> evalNodeActionSync(AsyncNodeActionWithConfig action,
-																		  String actualNodeId, OverAllState state, RunnableConfig config) {
+		private CompletableFuture<NodeActionResult<S>> evalNodeActionSync(AsyncNodeActionWithConfig<S> action,
+																		  String actualNodeId,
+																		  S state,
+																		  RunnableConfig config) {
 			LifeListenerUtil.processListenersLIFO(actualNodeId,
-					new LinkedBlockingDeque<>(compileConfig.lifecycleListeners()), state.data(), config, NODE_BEFORE,
-					null);
-			return action.apply(state, config)
-					.whenComplete((stringObjectMap, throwable) -> LifeListenerUtil.processListenersLIFO(actualNodeId,
-							new LinkedBlockingDeque<>(compileConfig.lifecycleListeners()), state.data(), config,
+                    new LinkedBlockingDeque<>(compileConfig.lifecycleListeners()), state, config, NODE_BEFORE, null);
+			CompletableFuture<NodeActionResult<S>> cf = action.apply(state, config);
+			return cf.whenComplete((stringObjectMap, throwable) -> LifeListenerUtil.processListenersLIFO(actualNodeId,
+							new LinkedBlockingDeque<>(compileConfig.lifecycleListeners()), state, config,
 							NODE_AFTER,
 							throwable));
 		}
 
-		private CompletableFuture<Map<String, Object>> evalNodeActionAsync(AsyncNodeActionWithConfig action,
-				String actualNodeId, OverAllState state, RunnableConfig config, Executor executor) {
+		private CompletableFuture<NodeActionResult<S>> evalNodeActionAsync(AsyncNodeActionWithConfig<S> action,
+				String actualNodeId, S state, RunnableConfig config, Executor executor) {
 			
 			// Log thread pool metrics if it's a ThreadPoolExecutor
 			if (executor instanceof ThreadPoolExecutor threadPoolExecutor) {
@@ -332,10 +336,10 @@ public class ParallelNode extends Node {
 		 * @param futures the list of futures to wait for
 		 * @return a CompletableFuture that completes with the first successful result
 		 */
-		private CompletableFuture<Map<String, Object>> waitForFirstSuccessful(
-				List<CompletableFuture<Map<String, Object>>> futures) {
+		private CompletableFuture<NodeActionResult<S>> waitForFirstSuccessful(
+				List<CompletableFuture<NodeActionResult<S>>> futures) {
 
-			CompletableFuture<Map<String, Object>> result = new CompletableFuture<>();
+			CompletableFuture<NodeActionResult<S>> result = new CompletableFuture<>();
 			AtomicInteger completedCount = new AtomicInteger(0);
 			List<Throwable> failures = new CopyOnWriteArrayList<>();
 			int totalFutures = futures.size();
@@ -389,10 +393,10 @@ public class ParallelNode extends Node {
 		 * @param semaphore the semaphore used to control concurrency
 		 * @return a CompletableFuture containing the execution results
 		 */
-		private CompletableFuture<Map<String, Object>> evalNodeActionWithSemaphore(
-				AsyncNodeActionWithConfig action,
+		private CompletableFuture<NodeActionResult<S>> evalNodeActionWithSemaphore(
+				AsyncNodeActionWithConfig<S> action,
 				String actualNodeId,
-				OverAllState state,
+				S state,
 				RunnableConfig config,
 				Executor executor,
 				Semaphore semaphore) {
@@ -428,7 +432,7 @@ public class ParallelNode extends Node {
 		}
 
 		@Override
-		public CompletableFuture<Map<String, Object>> apply(OverAllState state, RunnableConfig config) {
+		public CompletableFuture<NodeActionResult<S>> apply(S state, RunnableConfig config) {
 			// Get maxConcurrency from config metadata
 			Integer maxConcurrency = config.metadata(formatMaxConcurrencyKey(nodeId))
 					.filter(value -> value instanceof Integer)
@@ -444,24 +448,24 @@ public class ParallelNode extends Node {
 				logger.debug("Parallel node {} will execute without concurrency limit", nodeId);
 			}
 
-			List<CompletableFuture<Map<String, Object>>> futures = new ArrayList<>();
+			List<CompletableFuture<NodeActionResult<S>>> futures = new ArrayList<>();
 			for (int i = 0; i < actions.size(); i++) {
-				AsyncNodeActionWithConfig action = actions.get(i);
+				AsyncNodeActionWithConfig<S> action = actions.get(i);
 				String actualNodeId = actionNodeIds.get(i);
 
 				// Create a defensive copy of the state for each parallel action
 				// This prevents race conditions if actions modify the state in-place
-				OverAllState stateSnapshot = state.snapShot().orElse(new OverAllState());
+				// TODO deep clone state
 
 				// First try to get node-specific executor, then default executor, finally use DEFAULT_EXECUTOR
 				Executor executor = getExecutor(config, nodeId);
 
 				// Use semaphore-controlled execution if maxConcurrency is set
-				CompletableFuture<Map<String, Object>> future;
+				CompletableFuture<NodeActionResult<S>> future;
 				if (semaphore != null) {
-					future = evalNodeActionWithSemaphore(action, actualNodeId, stateSnapshot, config, executor, semaphore);
+					future = evalNodeActionWithSemaphore(action, actualNodeId, state, config, executor, semaphore);
 				} else {
-					future = evalNodeActionAsync(action, actualNodeId, stateSnapshot, config, executor);
+					future = evalNodeActionAsync(action, actualNodeId, state, config, executor);
 				}
 
 				futures.add(future);
@@ -472,15 +476,11 @@ public class ParallelNode extends Node {
 
 		if (strategy == NodeAggregationStrategy.ANY_OF) {
 			// Wait for the first successful task to complete
-			// This implementation returns the first successful result, skipping failures
-			// Only fails if ALL tasks fail
 			return waitForFirstSuccessful(futures).thenApply(firstSuccessfulResult -> {
 				// Cancel remaining futures to prevent unnecessary execution and resource waste
 				int cancelledCount = 0;
-				for (CompletableFuture<Map<String, Object>> future : futures) {
+				for (CompletableFuture<NodeActionResult<S>> future : futures) {
 					if (!future.isDone()) {
-						// mayInterruptIfRunning=true: Stop running tasks to save resources
-						// Tasks should handle InterruptedException gracefully, this might cause unexpected behavior if not handled properly
 						boolean cancelled = future.cancel(true);
 						if (cancelled) {
 							cancelledCount++;
@@ -492,20 +492,22 @@ public class ParallelNode extends Node {
 					logger.info("ANY_OF strategy: Cancelled {} remaining futures after first successful completion", cancelledCount);
 				}
 
-				List<Map<String, Object>> results = new ArrayList<>();
+				List<NodeActionResult<S>> results = new ArrayList<>();
 				results.add(firstSuccessfulResult);
 
-				return processParallelResults(results, state, actions);
+				S mergedState = processParallelResults(results, state, actions);
+				return NodeActionResult.of(mergedState);
 			});
 		} else {
 			// Wait for all tasks to complete (default behavior)
 			return CompletableFuture.allOf(futures.toArray(CompletableFuture[]::new)).thenApply(v -> {
 				// Collect all results
-				List<Map<String, Object>> results = futures.stream()
+				List<NodeActionResult<S>> results = futures.stream()
 						.map(CompletableFuture::join)
 						.collect(Collectors.toList());
 
-				return processParallelResults(results, state, actions);
+				S mergedState = processParallelResults(results, state, actions);
+				return NodeActionResult.of(mergedState);
 			});
 		}
 		}
@@ -515,8 +517,7 @@ public class ParallelNode extends Node {
 		 * regular objects.
 		 * Priority: GraphFlux > traditional Flux > regular objects
 		 */
-		private Map<String, Object> processParallelResults(List<Map<String, Object>> results,
-				OverAllState state, List<AsyncNodeActionWithConfig> actionList) {
+		private S processParallelResults(List<NodeActionResult<S>> results, S state, List<AsyncNodeActionWithConfig<S>> actionList) {
 
 			// Check if any result contains GraphFlux or traditional Flux
 			List<GraphFlux<?>> graphFluxList = new ArrayList<>();
@@ -526,12 +527,15 @@ public class ParallelNode extends Node {
 			Map<String, Object> mergedState = new HashMap<>();
 			// First pass: collect GraphFlux and traditional Flux instances
 			for (int i = 0; i < results.size(); i++) {
-				Map<String, Object> result = results.get(i);
-				AsyncNodeActionWithConfig action = actionList.get(i);
+				NodeActionResult<S> result = results.get(i);
+				AsyncNodeActionWithConfig<S> action = actionList.get(i);
 				String effectiveNodeId = generateEffectiveNodeId(action, i);
 
-				for (Map.Entry<String, Object> entry : result.entrySet()) {
-					Object value = entry.getValue();
+				if (result.hasStreamingFlux()) {
+					Flux<?> streamingFlux = result.streamingFlux();
+					// Traditional Flux - wrap it in GraphFlux for unified processing
+					GraphFlux<?> graphFlux = GraphFlux.of(effectiveNodeId, StateFieldScanner.getStreamingFieldKey(state.getClass()), streamingFlux, null, null);
+					graphFluxList.add(graphFlux);
 
 					if (value instanceof GraphFlux) {
 						GraphFlux<?> graphFlux = (GraphFlux<?>) value;
@@ -552,9 +556,7 @@ public class ParallelNode extends Node {
 						graphFluxList.add(graphFlux);
 						graphFluxNodeIds.add(graphFluxNodeId);
 					} else if (value instanceof Flux flux) {
-						// Traditional Flux - wrap it in GraphFlux for unified processing
-						GraphFlux<Object> graphFlux = GraphFlux.of(effectiveNodeId, entry.getKey(), flux, null, null);
-						graphFluxList.add(graphFlux);
+
 					} else {
 						// Regular object - add to merged state
 						Map<String, Object> singleEntryMap = Map.of(entry.getKey(), value);
@@ -584,7 +586,7 @@ public class ParallelNode extends Node {
 		 * Generate effective node ID for parallel execution.
 		 * This ensures each parallel branch has a unique and traceable identifier.
 		 */
-		private String generateEffectiveNodeId(AsyncNodeActionWithConfig action, int index) {
+		private String generateEffectiveNodeId(AsyncNodeActionWithConfig<S> action, int index) {
 			// Try to extract meaningful identifier from action
 			String actionClass = action.getClass().getSimpleName();
 			return String.format("%s_parallel_%d_%s", nodeId, index, actionClass);
@@ -610,11 +612,10 @@ public class ParallelNode extends Node {
 	 * @param compileConfig the compilation configuration containing lifecycle listeners and other
 	 *                      compile-time settings that affect how the parallel node is executed.
 	 */
-	public ParallelNode(String id, String targetNodeId, List<AsyncNodeActionWithConfig> actions, List<String> actionNodeIds,
-			Map<String, KeyStrategy> channels, CompileConfig compileConfig) {
-		super(formatNodeId(id),
-				(config) -> new AsyncParallelNodeAction(formatNodeId(id), targetNodeId, actions, actionNodeIds, channels,
-						compileConfig));
+	public ParallelNode(String id, String targetNodeId, List<AsyncNodeActionWithConfig<S>> actions, List<String> actionNodeIds,
+											   Map<String, KeyStrategy> channels, CompileConfig<S> compileConfig) {
+		super(formatNodeId(id), (config) ->
+				new AsyncParallelNodeAction<>(formatNodeId(id), targetNodeId, actions, actionNodeIds, channels, compileConfig));
 	}
 
 	@Override

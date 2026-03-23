@@ -15,37 +15,38 @@
  */
 package com.alibaba.cloud.ai.graph.action;
 
-import com.alibaba.cloud.ai.graph.OverAllState;
+import com.alibaba.cloud.ai.graph.GraphState;
 import io.opentelemetry.context.Context;
 
-import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 
 /**
- * Represents an asynchronous node action that operates on an agent state and returns
+ * Represents an asynchronous node action that operates on a graph state and returns a
  * state update.
  *
+ * @param <S> the concrete graph state type
  */
 @FunctionalInterface
-public interface AsyncNodeAction extends Function<OverAllState, CompletableFuture<Map<String, Object>>> {
+public interface AsyncNodeAction<S extends GraphState> extends Function<S, CompletableFuture<NodeActionResult<S>>> {
 
 	/**
 	 * Applies this action to the given agent state.
 	 * @param state the agent state
 	 * @return a CompletableFuture representing the result of the action
 	 */
-	CompletableFuture<Map<String, Object>> apply(OverAllState state);
+	CompletableFuture<NodeActionResult<S>> apply(S state);
 
 	/**
 	 * Creates an asynchronous node action from a synchronous node action.
+	 * @param <S> the concrete graph state type
 	 * @param syncAction the synchronous node action
 	 * @return an asynchronous node action
 	 */
-	static AsyncNodeAction node_async(NodeAction syncAction) {
+	static <S extends GraphState> AsyncNodeAction<S> node_async(NodeAction<S> syncAction) {
 		return state -> {
 			Context context = Context.current();
-			CompletableFuture<Map<String, Object>> result = new CompletableFuture<>();
+			CompletableFuture<NodeActionResult<S>> result = new CompletableFuture<>();
 			try {
 				result.complete(syncAction.apply(state));
 			}

@@ -15,7 +15,7 @@
  */
 package com.alibaba.cloud.ai.graph.action;
 
-import com.alibaba.cloud.ai.graph.OverAllState;
+import com.alibaba.cloud.ai.graph.GraphState;
 import com.alibaba.cloud.ai.graph.RunnableConfig;
 
 import java.util.List;
@@ -26,27 +26,30 @@ import java.util.function.Function;
 import io.opentelemetry.context.Context;
 
 /**
- * Interface for actions that can return multiple target nodes for parallel execution.
- * This is used when a conditional edge needs to route to multiple nodes simultaneously.
- * 
+ * Interface for actions that can return multiple target nodes for parallel execution. This
+ * is used when a conditional edge needs to route to multiple nodes simultaneously.
+ *
+ * @param <S> the concrete graph state type
  * @see AsyncCommandAction for single-node routing
  * @see MultiCommand for the return type
  */
-public interface AsyncMultiCommandAction extends BiFunction<OverAllState, RunnableConfig, CompletableFuture<MultiCommand>> {
+public interface AsyncMultiCommandAction<S extends GraphState>
+		extends BiFunction<S, RunnableConfig, CompletableFuture<MultiCommand<S>>> {
 
 	/**
 	 * Creates an AsyncMultiCommandAction from a synchronous MultiCommandAction.
-	 * 
+	 * @param <S> the concrete graph state type
 	 * @param syncAction the synchronous action
 	 * @return an AsyncMultiCommandAction wrapping the sync action
 	 */
-	static AsyncMultiCommandAction node_async(MultiCommandAction syncAction) {
+	static <S extends GraphState> AsyncMultiCommandAction<S> node_async(MultiCommandAction<S> syncAction) {
 		return (state, config) -> {
 			Context context = Context.current();
-			var result = new CompletableFuture<MultiCommand>();
+			var result = new CompletableFuture<MultiCommand<S>>();
 			try {
 				result.complete(syncAction.apply(state, config));
-			} catch (Exception e) {
+			}
+			catch (Exception e) {
 				result.completeExceptionally(e);
 			}
 			return result;
@@ -55,24 +58,26 @@ public interface AsyncMultiCommandAction extends BiFunction<OverAllState, Runnab
 
 	/**
 	 * Creates an AsyncMultiCommandAction from a function that returns a list of node IDs.
-	 * 
+	 * @param <S> the concrete graph state type
 	 * @param action a function that returns a list of node IDs
 	 * @return an AsyncMultiCommandAction wrapping the function
 	 */
-	static AsyncMultiCommandAction of(Function<OverAllState, CompletableFuture<List<String>>> action) {
-		return (state, config) -> action.apply(state)
-				.thenApply(nodeIds -> new MultiCommand(nodeIds));
+	static <S extends GraphState> AsyncMultiCommandAction<S> of(
+			Function<S, CompletableFuture<List<String>>> action) {
+		return (state, config) -> action.apply(state).thenApply(nodeIds -> new MultiCommand<>(nodeIds));
 	}
 
 	/**
-	 * Creates an AsyncMultiCommandAction from a BiFunction that returns a list of node IDs.
-	 * 
+	 * Creates an AsyncMultiCommandAction from a BiFunction that returns a list of node
+	 * IDs.
+	 * @param <S> the concrete graph state type
 	 * @param action a BiFunction that returns a list of node IDs
 	 * @return an AsyncMultiCommandAction wrapping the function
 	 */
-	static AsyncMultiCommandAction of(BiFunction<OverAllState, RunnableConfig, CompletableFuture<List<String>>> action) {
-		return (state, config) -> action.apply(state, config)
-				.thenApply(MultiCommand::new);
+	static <S extends GraphState> AsyncMultiCommandAction<S> of(
+			BiFunction<S, RunnableConfig, CompletableFuture<List<String>>> action) {
+		return (state, config) -> action.apply(state, config).thenApply(MultiCommand::new);
 	}
+
 }
 

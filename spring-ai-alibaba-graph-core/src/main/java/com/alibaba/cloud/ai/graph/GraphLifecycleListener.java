@@ -15,7 +15,6 @@
  */
 package com.alibaba.cloud.ai.graph;
 
-import java.util.Map;
 
 /**
  * Interface for listening to graph lifecycle events, allowing callbacks to be
@@ -29,7 +28,7 @@ import java.util.Map;
  * @author disaster
  * @version 1.0.0
  */
-public interface GraphLifecycleListener {
+public interface GraphLifecycleListener<S extends GraphState> {
 
 	String EXECUTION_ID_KEY = "_graph_execution_id_";
 
@@ -40,7 +39,7 @@ public interface GraphLifecycleListener {
 	 * @param state  The current state of the graph at the start of the node
 	 *               execution.
 	 */
-	default void onStart(String nodeId, Map<String, Object> state, RunnableConfig config) {
+	default void onStart(String nodeId, S state, RunnableConfig config) {
 	}
 
 	/**
@@ -51,7 +50,7 @@ public interface GraphLifecycleListener {
 	 * @param config  The configuration associated with the runnable task.
 	 * @param curTime The timestamp when this callback is triggered.
 	 */
-	default void before(String nodeId, Map<String, Object> state, RunnableConfig config, Long curTime) {
+	default void before(String nodeId, S state, RunnableConfig config, Long curTime) {
 	}
 
 	/**
@@ -62,7 +61,7 @@ public interface GraphLifecycleListener {
 	 * @param config  The configuration associated with the runnable task.
 	 * @param curTime The timestamp when this callback is triggered.
 	 */
-	default void after(String nodeId, Map<String, Object> state, RunnableConfig config, Long curTime) {
+	default void after(String nodeId, S state, RunnableConfig config, Long curTime) {
 	}
 
 	/**
@@ -72,7 +71,7 @@ public interface GraphLifecycleListener {
 	 * @param state  The state of the graph at the time of the error.
 	 * @param ex     The exception that was thrown during node execution.
 	 */
-	default void onError(String nodeId, Map<String, Object> state, Throwable ex, RunnableConfig config) {
+	default void onError(String nodeId, S state, Throwable ex, RunnableConfig config) {
 	}
 
 	/**
@@ -81,7 +80,7 @@ public interface GraphLifecycleListener {
 	 * @param nodeId The unique identifier of the completed node.
 	 * @param state  The final state of the graph after node completion.
 	 */
-	default void onComplete(String nodeId, Map<String, Object> state, RunnableConfig config) {
+	default void onComplete(String nodeId, S state, RunnableConfig config) {
 	}
 
 }

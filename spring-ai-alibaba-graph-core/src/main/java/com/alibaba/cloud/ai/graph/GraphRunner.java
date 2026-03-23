@@ -27,9 +27,9 @@ import java.util.concurrent.atomic.AtomicReference;
  * refactored to use OOP principles (inheritance, polymorphism, encapsulation) for better
  * separation of concerns and improved readability.
  */
-public class GraphRunner {
+public class GraphRunner<S extends GraphState> {
 
-	private final CompiledGraph compiledGraph;
+	private final CompiledGraph<S> compiledGraph;
 
 	private final RunnableConfig config;
 
@@ -38,17 +38,17 @@ public class GraphRunner {
 	// Handler for main execution flow - demonstrates encapsulation
 	private final MainGraphExecutor mainGraphExecutor;
 
-	public GraphRunner(CompiledGraph compiledGraph, RunnableConfig config) {
+	public GraphRunner(CompiledGraph<S> compiledGraph, RunnableConfig config) {
 		this.compiledGraph = compiledGraph;
 		this.config = config;
 		// Initialize the main execution handler - demonstrates encapsulation
 		this.mainGraphExecutor = new MainGraphExecutor();
 	}
 
-	public Flux<GraphResponse<NodeOutput>> run(OverAllState initialState) {
+	public Flux<GraphResponse<NodeOutput<S>>> run(OverAllState initialState) {
 		return Flux.defer(() -> {
 			try {
-				GraphRunnerContext context = new GraphRunnerContext(initialState, config, compiledGraph);
+				GraphRunnerContext<S> context = new GraphRunnerContext<>(initialState, config, compiledGraph);
 				// Delegate to the main execution handler - demonstrates polymorphism
 				return mainGraphExecutor.execute(context, resultValue);
 			}

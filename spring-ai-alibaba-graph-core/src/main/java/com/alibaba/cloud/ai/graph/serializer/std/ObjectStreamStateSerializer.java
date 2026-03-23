@@ -29,7 +29,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class ObjectStreamStateSerializer extends StateSerializer {
+public class ObjectStreamStateSerializer extends StateSerializer<OverAllState> {
 
 	private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(ObjectStreamStateSerializer.class);
 
@@ -45,6 +45,16 @@ public class ObjectStreamStateSerializer extends StateSerializer {
 
 	public SerializerMapper mapper() {
 		return mapper;
+	}
+
+	@Override
+	public Map<String, Object> toMap(OverAllState state) {
+		return state.data();
+	}
+
+	@Override
+	public OverAllState fromMap(Map<String, Object> data) {
+		return stateFactory().apply(data);
 	}
 
 	@Override

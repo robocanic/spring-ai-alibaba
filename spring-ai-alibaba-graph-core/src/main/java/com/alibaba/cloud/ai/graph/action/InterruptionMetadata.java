@@ -15,9 +15,9 @@
  */
 package com.alibaba.cloud.ai.graph.action;
 
+import com.alibaba.cloud.ai.graph.GraphState;
 import com.alibaba.cloud.ai.graph.HasMetadata;
 import com.alibaba.cloud.ai.graph.NodeOutput;
-import com.alibaba.cloud.ai.graph.OverAllState;
 import com.alibaba.cloud.ai.graph.utils.CollectionsUtils;
 
 import org.springframework.ai.chat.messages.AssistantMessage;
@@ -35,7 +35,7 @@ import static java.util.Optional.ofNullable;
  * where the interruption occurred, and any additional custom metadata.
  *
  */
-public final class InterruptionMetadata extends NodeOutput implements HasMetadata<InterruptionMetadata.Builder> {
+public final class InterruptionMetadata<S extends GraphState> extends NodeOutput<S> implements HasMetadata<InterruptionMetadata.Builder<S>> {
 
 	private final Map<String, Object> metadata;
 
@@ -43,7 +43,7 @@ public final class InterruptionMetadata extends NodeOutput implements HasMetadat
 
 	private List<ToolFeedback> toolFeedbacks;
 
-	private InterruptionMetadata(Builder builder) {
+	private InterruptionMetadata(Builder<S> builder) {
 		super(builder.nodeId, builder.state);
 		this.metadata = builder.metadata();
 		this.toolFeedbacks = new ArrayList<>(builder.toolFeedbacks);
@@ -96,16 +96,16 @@ public final class InterruptionMetadata extends NodeOutput implements HasMetadat
 	 * Creates a new builder for {@link InterruptionMetadata}.
 	 * @return a new {@link Builder} instance
 	 */
-	public static Builder builder(String nodeId, OverAllState state) {
-		return new Builder(nodeId, state);
+	public static <S extends GraphState> Builder<S> builder(String nodeId, S state) {
+		return new Builder<>(nodeId, state);
 	}
 
-	public static Builder builder() {
-		return new Builder();
+	public static <S extends GraphState> Builder<S> builder() {
+		return new Builder<>();
 	}
 
-	public static Builder builder(InterruptionMetadata interruptionMetadata) {
-		Builder builder = new Builder(interruptionMetadata.metadata().orElse(Map.of()))
+	public static <S extends GraphState> Builder<S> builder(InterruptionMetadata<S> interruptionMetadata) {
+		Builder<S> builder = new Builder<S>(interruptionMetadata.metadata().orElse(Map.of()))
 			.nodeId(interruptionMetadata.node())
 			.state(interruptionMetadata.state());
 		if (interruptionMetadata.getToolsAutomaticallyApproved() != null) {
@@ -121,14 +121,14 @@ public final class InterruptionMetadata extends NodeOutput implements HasMetadat
 	 * A builder for creating instances of {@link InterruptionMetadata}.
 	 *
 	 */
-	public static class Builder extends HasMetadata.Builder<Builder> {
+	public static class Builder<S extends GraphState> extends HasMetadata.Builder<Builder<S>> {
 		List<ToolFeedback> toolFeedbacks;
 
 		List<AssistantMessage.ToolCall> toolsAutomaticallyApproved;
 
 		String nodeId;
 
-		OverAllState state;
+		S state;
 
 		public Builder() {
 			this.toolFeedbacks = new ArrayList<>();
@@ -138,7 +138,7 @@ public final class InterruptionMetadata extends NodeOutput implements HasMetadat
 		 * Constructs a new builder.
 		 *
 		 */
-		public Builder(String nodeId, OverAllState state) {
+		public Builder(String nodeId, S state) {
 			this.nodeId = nodeId;
 			this.state = state;
 			this.toolFeedbacks = new ArrayList<>();
@@ -149,27 +149,27 @@ public final class InterruptionMetadata extends NodeOutput implements HasMetadat
 			this.toolFeedbacks = new ArrayList<>();
 		}
 
-		public Builder nodeId(String nodeId) {
+		public Builder<S> nodeId(String nodeId) {
 			this.nodeId = nodeId;
 			return this;
 		}
 
-		public Builder state(OverAllState state) {
+		public Builder<S> state(S state) {
 			this.state = state;
 			return this;
 		}
 
-		public Builder addToolFeedback(ToolFeedback toolFeedback) {
+		public Builder<S> addToolFeedback(ToolFeedback toolFeedback) {
 			this.toolFeedbacks.add(toolFeedback);
 			return this;
 		}
 
-		public Builder toolFeedbacks(List<ToolFeedback> toolFeedbacks) {
+		public Builder<S> toolFeedbacks(List<ToolFeedback> toolFeedbacks) {
 			this.toolFeedbacks = new ArrayList<>(toolFeedbacks);
 			return this;
 		}
 
-		public Builder addToolsAutomaticallyApproved(AssistantMessage.ToolCall toolCall) {
+		public Builder<S> addToolsAutomaticallyApproved(AssistantMessage.ToolCall toolCall) {
 			if (this.toolsAutomaticallyApproved == null) {
 				this.toolsAutomaticallyApproved = new ArrayList<>();
 			}
@@ -177,7 +177,7 @@ public final class InterruptionMetadata extends NodeOutput implements HasMetadat
 			return this;
 		}
 
-		public Builder toolsAutomaticallyApproved(List<AssistantMessage.ToolCall> toolsAutomaticallyApproved) {
+		public Builder<S> toolsAutomaticallyApproved(List<AssistantMessage.ToolCall> toolsAutomaticallyApproved) {
 			this.toolsAutomaticallyApproved = new ArrayList<>(toolsAutomaticallyApproved);
 			return this;
 		}
@@ -186,8 +186,8 @@ public final class InterruptionMetadata extends NodeOutput implements HasMetadat
 		 * Builds the {@link InterruptionMetadata} instance.
 		 * @return a new, immutable {@link InterruptionMetadata} instance
 		 */
-		public InterruptionMetadata build() {
-			return new InterruptionMetadata(this);
+		public InterruptionMetadata<S> build() {
+			return new InterruptionMetadata<>(this);
 		}
 
 	}

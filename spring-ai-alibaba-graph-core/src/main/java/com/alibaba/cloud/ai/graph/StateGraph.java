@@ -27,10 +27,10 @@ import com.alibaba.cloud.ai.graph.internal.node.Node;
 import com.alibaba.cloud.ai.graph.internal.node.SubCompiledGraphNode;
 import com.alibaba.cloud.ai.graph.internal.node.SubStateGraphNode;
 import com.alibaba.cloud.ai.graph.serializer.StateSerializer;
-import com.alibaba.cloud.ai.graph.serializer.plain_text.PlainTextStateSerializer;
 import com.alibaba.cloud.ai.graph.serializer.plain_text.jackson.SpringAIJacksonStateSerializer;
 import com.alibaba.cloud.ai.graph.serializer.std.SpringAIStateSerializer;
 import com.alibaba.cloud.ai.graph.state.AgentStateFactory;
+import com.alibaba.cloud.ai.graph.utils.StateFieldScanner;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.util.ArrayList;
@@ -49,7 +49,7 @@ import static java.util.concurrent.CompletableFuture.completedFuture;
 /**
  * Represents a state graph with nodes and edges.
  */
-public class StateGraph {
+public class StateGraph<S extends GraphState> {
 
 	/**
 	 * Constant representing the END of the graph.
@@ -79,7 +79,7 @@ public class StateGraph {
 	/**
 	 * Collection of nodes in the graph.
 	 */
-	final Nodes nodes = new Nodes();
+	final Nodes<S> nodes = new Nodes<>();
 
 	/**
 	 * Collection of edges in the graph.
@@ -102,33 +102,14 @@ public class StateGraph {
 	private final StateSerializer stateSerializer;
 
 	/**
+	 * Class of the graph state.
+	 */
+	private final Class<S> graphStateClass;
+
+	/**
 	 * Default Jackson serializer instance.
 	 */
 	public static final StateSerializer DEFAULT_JACKSON_SERIALIZER = new SpringAIJacksonStateSerializer(OverAllState::new, new ObjectMapper());
-
-	/**
-	 * Constructs a StateGraph with the specified name, key strategy factory, and state
-	 * serializer.
-	 * @param name the name of the graph
-	 * @param keyStrategyFactory the factory for providing key strategies
-	 * @param stateSerializer the plain text state serializer to use
-	 * @deprecated Use {@link #StateGraph(String, KeyStrategyFactory, StateSerializer)} instead
-	 */
-	@Deprecated
-	public StateGraph(String name, KeyStrategyFactory keyStrategyFactory, PlainTextStateSerializer stateSerializer) {
-		this(name, keyStrategyFactory, (StateSerializer) stateSerializer);
-	}
-
-	/**
-	 * Constructs a StateGraph with the specified key strategy factory and plain text state serializer.
-	 * @param keyStrategyFactory the factory for providing key strategies
-	 * @param stateSerializer the plain text state serializer to use
-	 * @deprecated Use {@link #StateGraph(KeyStrategyFactory, StateSerializer)} instead
-	 */
-	@Deprecated
-	public StateGraph(KeyStrategyFactory keyStrategyFactory, PlainTextStateSerializer stateSerializer) {
-		this(keyStrategyFactory, (StateSerializer) stateSerializer);
-	}
 
 	/**
 	 * Constructs a StateGraph with the specified name, key strategy factory, and SpringAI
@@ -183,6 +164,13 @@ public class StateGraph {
 		this(null, keyStrategyFactory, Objects.requireNonNull(stateSerializer, "stateSerializer cannot be null"));
 	}
 
+	public StateGraph(String name, Class<S> graphStateClass, StateSerializer stateSerializer) {
+        this.name = name;
+		this.graphStateClass = graphStateClass;
+		this.keyStrategyFactory = () -> StateFieldScanner.getKeyStrategies(graphStateClass);
+		this.stateSerializer = Objects.requireNonNull(stateSerializer, "stateSerializer cannot be null");
+	}
+
 	/**
 	 * Constructs a StateGraph with the specified name, key strategy factory, and state
 	 * serializer.
@@ -193,6 +181,7 @@ public class StateGraph {
 	public StateGraph(String name, KeyStrategyFactory keyStrategyFactory, StateSerializer stateSerializer) {
 		this.name = name;
 		this.keyStrategyFactory = keyStrategyFactory;
+		this.graphStateClass = (Class<S>) OverAllState.class;
 		this.stateSerializer = Objects.requireNonNull(stateSerializer, "stateSerializer cannot be null");
 	}
 
@@ -236,8 +225,10 @@ public class StateGraph {
 	 * @throws GraphStateException if the node identifier is invalid or the node already
 	 * exists
 	 */
-	public StateGraph addNode(String id, AsyncNodeAction action) throws GraphStateException {
-		return addNode(id, AsyncNodeActionWithConfig.of(action));
+	public StateGraph<S> addNode(String id, AsyncNodeAction<? extends GraphState> action) throws GraphStateException {
+		@SuppressWarnings("unchecked")
+		AsyncNodeActionWithConfig<S> actionWithConfig = (AsyncNodeActionWithConfig<S>) AsyncNodeActionWithConfig.of(action);
+		return addNode(id, actionWithConfig);
 	}
 
 	/**
@@ -248,8 +239,8 @@ public class StateGraph {
 	 * @throws GraphStateException if the node identifier is invalid or the node already
 	 * exists
 	 */
-	public StateGraph addNode(String id, AsyncNodeActionWithConfig actionWithConfig) throws GraphStateException {
-		Node node = new Node(id, (config) -> actionWithConfig);
+	public StateGraph<S> addNode(String id, AsyncNodeActionWithConfig<S> actionWithConfig) throws GraphStateException {
+		Node<S> node = new Node<>(id, (config) -> actionWithConfig);
 		return addNode(id, node);
 	}
 
@@ -261,7 +252,7 @@ public class StateGraph {
 	 * @throws GraphStateException if the node identifier is invalid or the node already
 	 * exists
 	 */
-	public StateGraph addNode(String id, Node node) throws GraphStateException {
+	public StateGraph<S> addNode(String id, Node<S> node) throws GraphStateException {
 		if (Objects.equals(node.id(), END)) {
 			throw Errors.invalidNodeIdentifier.exception(END);
 		}
@@ -285,10 +276,10 @@ public class StateGraph {
 	 * @throws GraphStateException if the node identifier is invalid, the mappings are
 	 * empty, or the node already exists
 	 */
-	public StateGraph addNode(String id, AsyncCommandAction action, Map<String, String> mappings)
+	public StateGraph<S> addNode(String id, AsyncCommandAction<S> action, Map<String, String> mappings)
 			throws GraphStateException {
 		// SIMPLER IMPLEMENTATION
-		return addNode(id, (state, config) -> completedFuture(Map.of())).addConditionalEdges(id, action, mappings);
+		return addNode(id, (state, config) -> completedFuture(NodeActionResult.of(state))).addConditionalEdges(id, action, mappings);
 	}
 
 	/**
@@ -301,10 +292,11 @@ public class StateGraph {
 	 * @throws GraphStateException if the node identifier is invalid, the mappings are
 	 * empty, or the node already exists
 	 */
-	public StateGraph addNode(String id, AsyncMultiCommandAction action, Map<String, String> mappings)
+	public StateGraph<S> addNode(String id, AsyncMultiCommandAction<S> action, Map<String, String> mappings)
 			throws GraphStateException {
 		// SIMPLER IMPLEMENTATION
-		return addNode(id, (state, config) -> completedFuture(Map.of())).addParallelConditionalEdges(id, action, mappings);
+		return addNode(id,(state, config) -> completedFuture(NodeActionResult.of(state)))
+				.addParallelConditionalEdges(id, action, mappings);
 	}
 
 	/**
@@ -317,7 +309,7 @@ public class StateGraph {
 	 * @throws GraphStateException if the node identifier is invalid or the node already
 	 * exists
 	 */
-	public StateGraph addNode(String id, CompiledGraph subGraph) throws GraphStateException {
+	public StateGraph<S> addNode(String id, CompiledGraph<S> subGraph) throws GraphStateException {
 		if (Objects.equals(id, END)) {
 			throw Errors.invalidNodeIdentifier.exception(END);
 		}
@@ -343,14 +335,14 @@ public class StateGraph {
 	 * @throws GraphStateException if the node identifier is invalid or the node already
 	 * exists
 	 */
-	public StateGraph addNode(String id, StateGraph subGraph) throws GraphStateException {
+	public StateGraph<S> addNode(String id, StateGraph<S> subGraph) throws GraphStateException {
 		if (Objects.equals(id, END)) {
 			throw Errors.invalidNodeIdentifier.exception(END);
 		}
 
 		subGraph.validateGraph();
 
-		var node = new SubStateGraphNode(id, subGraph);
+		SubStateGraphNode<S> node = new SubStateGraphNode<>(id, subGraph);
 
 		if (nodes.elements.contains(node)) {
 			throw Errors.duplicateNodeError.exception(id);
@@ -368,7 +360,7 @@ public class StateGraph {
 	 * @throws GraphStateException if the edge identifier is invalid or the edge already
 	 * exists
 	 */
-	public StateGraph addEdge(String sourceId, String targetId) throws GraphStateException {
+	public StateGraph<S> addEdge(String sourceId, String targetId) throws GraphStateException {
 		if (Objects.equals(sourceId, END)) {
 			throw Errors.invalidEdgeIdentifier.exception(END);
 		}
@@ -388,7 +380,7 @@ public class StateGraph {
 		return this;
 	}
 
-	public StateGraph addEdge(List<String> sourceIds, String targetId) throws GraphStateException {
+	public StateGraph<S> addEdge(List<String> sourceIds, String targetId) throws GraphStateException {
 		if (sourceIds == null || sourceIds.isEmpty()) {
 			throw Errors.emptySourceNodeByEdge.exception(targetId);
 		}
@@ -398,7 +390,7 @@ public class StateGraph {
 		return this;
 	}
 
-	public StateGraph addEdge(String sourceId, List<String> targetIds) throws GraphStateException {
+	public StateGraph<S> addEdge(String sourceId, List<String> targetIds) throws GraphStateException {
 		if (targetIds == null || targetIds.isEmpty()) {
 			throw Errors.emptyTargetNodeByEdge.exception(sourceId);
 		}
@@ -417,7 +409,7 @@ public class StateGraph {
 	 * @throws GraphStateException if the edge identifier is invalid, the mappings are
 	 * empty, or the edge already exists
 	 */
-	public StateGraph addConditionalEdges(String sourceId, AsyncCommandAction condition, Map<String, String> mappings)
+	public StateGraph<S> addConditionalEdges(String sourceId, AsyncCommandAction<S> condition, Map<String, String> mappings)
 			throws GraphStateException {
 		if (Objects.equals(sourceId, END)) {
 			throw Errors.invalidEdgeIdentifier.exception(END);
@@ -447,7 +439,7 @@ public class StateGraph {
 	 * @throws GraphStateException if the edge identifier is invalid, the mappings are
 	 * empty, or the edge already exists
 	 */
-	public StateGraph addConditionalEdges(String sourceId, AsyncEdgeAction condition, Map<String, String> mappings)
+	public StateGraph<S> addConditionalEdges(String sourceId, AsyncEdgeAction<S> condition, Map<String, String> mappings)
 			throws GraphStateException {
 		return addConditionalEdges(sourceId, AsyncCommandAction.of(condition), mappings);
 	}
@@ -462,7 +454,7 @@ public class StateGraph {
 	 * @throws GraphStateException if the edge identifier is invalid, the mappings are
 	 * empty, or the edge already exists
 	 */
-	public StateGraph addConditionalEdges(String sourceId, AsyncEdgeActionWithConfig asyncEdgeActionWithConfig, Map<String, String> mappings)
+	public StateGraph<S> addConditionalEdges(String sourceId, AsyncEdgeActionWithConfig<S> asyncEdgeActionWithConfig, Map<String, String> mappings)
 			throws GraphStateException {
 		return addConditionalEdges(sourceId, AsyncCommandAction.of(asyncEdgeActionWithConfig), mappings);
 	}
@@ -479,7 +471,7 @@ public class StateGraph {
 	 * @throws GraphStateException if the edge identifier is invalid, the mappings are
 	 * empty, or the edge already exists
 	 */
-	public StateGraph addParallelConditionalEdges(String sourceId, AsyncMultiCommandAction condition, Map<String, String> mappings)
+	public StateGraph<S> addParallelConditionalEdges(String sourceId, AsyncMultiCommandAction<S> condition, Map<String, String> mappings)
 			throws GraphStateException {
 		if (Objects.equals(sourceId, END)) {
 			throw Errors.invalidEdgeIdentifier.exception(END);
@@ -523,12 +515,12 @@ public class StateGraph {
 	 * @return a compiled graph
 	 * @throws GraphStateException if there are errors related to the graph state
 	 */
-	public CompiledGraph compile(CompileConfig config) throws GraphStateException {
+	public CompiledGraph<S> compile(CompileConfig<S> config) throws GraphStateException {
 		Objects.requireNonNull(config, "config cannot be null");
 
 		validateGraph();
 
-		return new CompiledGraph(this, config);
+		return new CompiledGraph<>(this, config);
 	}
 
 	/**
@@ -537,11 +529,11 @@ public class StateGraph {
 	 * @return a compiled graph
 	 * @throws GraphStateException if there are errors related to the graph state
 	 */
-	public CompiledGraph compile() throws GraphStateException {
+	public CompiledGraph<S> compile() throws GraphStateException {
 		SaverConfig saverConfig = SaverConfig.builder()
 			.register(new MemorySaver())
 			.build();
-		return compile(CompileConfig.builder().saverConfig(saverConfig).build());
+		return compile(CompileConfig.<S>builder().saverConfig(saverConfig).build());
 	}
 
 	/**
@@ -585,18 +577,18 @@ public class StateGraph {
 	/**
 	 * Container for nodes in the graph.
 	 */
-	public static class Nodes {
+	public static class Nodes<S extends GraphState> {
 
 		/**
 		 * The collection of nodes.
 		 */
-		public final Set<Node> elements;
+		public final Set<Node<S>> elements;
 
 		/**
 		 * Instantiates a new Nodes container with the provided elements.
 		 * @param elements the elements to initialize
 		 */
-		public Nodes(Collection<Node> elements) {
+		public Nodes(Collection<Node<S>> elements) {
 			this.elements = new LinkedHashSet<>(elements);
 		}
 
@@ -620,10 +612,10 @@ public class StateGraph {
 		 * Returns a list of sub-state graph nodes.
 		 * @return a list of sub-state graph nodes
 		 */
-		public List<SubStateGraphNode> onlySubStateGraphNodes() {
+		public List<SubStateGraphNode<S>> onlySubStateGraphNodes() {
 			return elements.stream()
 				.filter(n -> n instanceof SubStateGraphNode)
-				.map(n -> (SubStateGraphNode) n)
+				.map(n -> (SubStateGraphNode<S>) n)
 				.toList();
 		}
 
@@ -631,7 +623,7 @@ public class StateGraph {
 		 * Returns a list of nodes excluding sub-state graph nodes.
 		 * @return a list of nodes excluding sub-state graph nodes
 		 */
-		public List<Node> exceptSubStateGraphNodes() {
+		public List<Node<S>> exceptSubStateGraphNodes() {
 			return elements.stream().filter(n -> !(n instanceof SubStateGraphNode)).toList();
 		}
 

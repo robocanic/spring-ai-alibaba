@@ -15,39 +15,48 @@
  */
 package com.alibaba.cloud.ai.graph.action;
 
-import com.alibaba.cloud.ai.graph.OverAllState;
+import com.alibaba.cloud.ai.graph.GraphState;
 import com.alibaba.cloud.ai.graph.RunnableConfig;
 import io.opentelemetry.context.Context;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.function.BiFunction;
 
+/**
+ * Asynchronous edge action with access to {@link RunnableConfig}.
+ *
+ * @param <S> the concrete graph state type
+ */
 @FunctionalInterface
-public interface AsyncEdgeActionWithConfig extends BiFunction<OverAllState, RunnableConfig, CompletableFuture<String>> {
-    /**
-     * Applies this action to the given agent state.
-     * @param state the agent state
-     * @param runnableConfig the runnableConfig
-     * @return a CompletableFuture representing the result of the action
-     */
-    CompletableFuture<String> apply(OverAllState state,RunnableConfig runnableConfig);
+public interface AsyncEdgeActionWithConfig<S extends GraphState>
+		extends BiFunction<S, RunnableConfig, CompletableFuture<String>> {
 
-    /**
-     * Creates an asynchronous edge action from a synchronous edge action.
-     * @param syncAction the synchronous edge action
-     * @return an asynchronous edge action
-     */
-    static AsyncEdgeActionWithConfig edge_async(EdgeActionWithConfig syncAction) {
-        return (state,runnableConfig) -> {
-            Context context = Context.current();
-            CompletableFuture<String> result = new CompletableFuture<>();
-            try {
-                result.complete(syncAction.apply(state,runnableConfig));
-            }
-            catch (Exception e) {
-                result.completeExceptionally(e);
-            }
-            return result;
-        };
-    }
+	/**
+	 * Applies this action to the given agent state.
+	 * @param state the agent state
+	 * @param runnableConfig the runnableConfig
+	 * @return a CompletableFuture representing the next node name
+	 */
+	CompletableFuture<String> apply(S state, RunnableConfig runnableConfig);
+
+	/**
+	 * Creates an asynchronous edge action from a synchronous edge action.
+	 * @param <S> the concrete graph state type
+	 * @param syncAction the synchronous edge action
+	 * @return an asynchronous edge action
+	 */
+	static <S extends GraphState> AsyncEdgeActionWithConfig<S> edge_async(EdgeActionWithConfig<S> syncAction) {
+		return (state, runnableConfig) -> {
+			Context context = Context.current();
+			CompletableFuture<String> result = new CompletableFuture<>();
+			try {
+				result.complete(syncAction.apply(state, runnableConfig));
+			}
+			catch (Exception e) {
+				result.completeExceptionally(e);
+			}
+			return result;
+		};
+	}
+
 }

@@ -15,14 +15,24 @@
  */
 package com.alibaba.cloud.ai.graph.action;
 
-import com.alibaba.cloud.ai.graph.OverAllState;
+import com.alibaba.cloud.ai.graph.GraphState;
 import com.alibaba.cloud.ai.graph.RunnableConfig;
 
-import java.util.Map;
-
+/**
+ * Synchronous node action with access to {@link RunnableConfig}.
+ *
+ * @param <S> the concrete graph state type
+ */
 @FunctionalInterface
-public interface NodeActionWithConfig {
+public interface NodeActionWithConfig<S extends GraphState> {
 
-	Map<String, Object> apply(OverAllState state, RunnableConfig config) throws Exception;
+	/**
+	 * Applies this action to the given state and config.
+	 * @param state the current graph state
+	 * @param config the runnable configuration
+	 * @return a {@link NodeActionResult} carrying the updated state
+	 * @throws Exception if an error occurs
+	 */
+	NodeActionResult<S> apply(S state, RunnableConfig config) throws Exception;
 
 }

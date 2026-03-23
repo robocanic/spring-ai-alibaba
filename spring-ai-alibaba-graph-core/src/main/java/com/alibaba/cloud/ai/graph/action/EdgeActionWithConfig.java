@@ -15,17 +15,24 @@
  */
 package com.alibaba.cloud.ai.graph.action;
 
-import com.alibaba.cloud.ai.graph.OverAllState;
+import com.alibaba.cloud.ai.graph.GraphState;
 import com.alibaba.cloud.ai.graph.RunnableConfig;
 
+/**
+ * Synchronous edge action with access to {@link RunnableConfig}.
+ *
+ * @param <S> the concrete graph state type
+ */
 @FunctionalInterface
-public interface EdgeActionWithConfig {
-    /**
-     * Applies this action to the given agent state.
-     * @param state the agent state
-     * @param runnableConfig the runnableConfig
-     * @return a result of the action
-     * @throws Exception if an error occurs during the action
-     */
-    String apply(OverAllState state, RunnableConfig runnableConfig) throws Exception;
+public interface EdgeActionWithConfig<S extends GraphState> {
+
+	/**
+	 * Applies this action to the given agent state.
+	 * @param state the agent state
+	 * @param runnableConfig the runnableConfig
+	 * @return the name of the next node to execute
+	 * @throws Exception if an error occurs during the action
+	 */
+	String apply(S state, RunnableConfig runnableConfig) throws Exception;
+
 }

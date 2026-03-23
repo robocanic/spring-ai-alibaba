@@ -16,10 +16,13 @@
 package com.alibaba.cloud.ai.graph.internal.node;
 
 import com.alibaba.cloud.ai.graph.CompileConfig;
+import com.alibaba.cloud.ai.graph.GraphState;
 import com.alibaba.cloud.ai.graph.KeyStrategy;
 import com.alibaba.cloud.ai.graph.OverAllState;
 import com.alibaba.cloud.ai.graph.RunnableConfig;
+import com.alibaba.cloud.ai.graph.action.AsyncMultiCommandAction;
 import com.alibaba.cloud.ai.graph.action.AsyncNodeActionWithConfig;
+import com.alibaba.cloud.ai.graph.action.NodeActionResult;
 import com.alibaba.cloud.ai.graph.internal.edge.EdgeCondition;
 import com.alibaba.cloud.ai.graph.streaming.GraphFlux;
 import com.alibaba.cloud.ai.graph.streaming.ParallelGraphFlux;
@@ -50,26 +53,26 @@ import static com.alibaba.cloud.ai.graph.internal.node.ParallelNode.formatNodeId
  * This node is used when a conditional edge action returns multiple target nodes,
  * allowing for dynamic parallel execution based on runtime conditions.
  */
-public class ConditionalParallelNode extends Node {
+public class ConditionalParallelNode<S extends GraphState> extends Node<S> {
 
 	private static final Logger logger = LoggerFactory.getLogger(ConditionalParallelNode.class);
 
 	public ConditionalParallelNode(
 			String sourceNodeId,
 			EdgeCondition edgeCondition,
-			Map<String, Node.ActionFactory> nodeFactories,
+			Map<String, Node.ActionFactory<S>> nodeFactories,
 			Map<String, KeyStrategy> channels,
-			CompileConfig compileConfig) {
+			CompileConfig<S> compileConfig) {
 		super(formatNodeId(sourceNodeId), createActionFactory(sourceNodeId, edgeCondition, nodeFactories, channels, compileConfig));
 	}
 
-	private static ActionFactory createActionFactory(
+	private static <S extends GraphState> ActionFactory<S> createActionFactory(
 			String sourceNodeId,
 			EdgeCondition edgeCondition,
-			Map<String, Node.ActionFactory> nodeFactories,
+			Map<String, Node.ActionFactory<S>> nodeFactories,
 			Map<String, KeyStrategy> channels,
-			CompileConfig compileConfig) {
-		return (config) -> new ConditionalParallelNodeAction(
+			CompileConfig<S> compileConfig) {
+		return (config) -> new ConditionalParallelNodeAction<>(
 				formatNodeId(sourceNodeId),
 				sourceNodeId,
 				edgeCondition,
@@ -78,23 +81,23 @@ public class ConditionalParallelNode extends Node {
 				compileConfig);
 	}
 
-	public record ConditionalParallelNodeAction(
+	public record ConditionalParallelNodeAction<S extends GraphState>(
 			String nodeId,
 			String sourceNodeId,
 			EdgeCondition edgeCondition,
-			Map<String, Node.ActionFactory> nodeFactories,
+			Map<String, Node.ActionFactory<S>> nodeFactories,
 			Map<String, KeyStrategy> keyStrategyMap,
-			CompileConfig compileConfig)
-			implements AsyncNodeActionWithConfig {
+			CompileConfig<S> compileConfig)
+			implements AsyncNodeActionWithConfig<S> {
 
 		@Override
-		public CompletableFuture<Map<String, Object>> apply(OverAllState state, RunnableConfig config) {
+		public CompletableFuture<NodeActionResult<S>> apply(S state, RunnableConfig config) {
 			// ConditionalParallelNode is only created for multi-command actions in CompiledGraph,
 			// so edgeCondition.isMultiCommand() is always true here
-			var multiAction = edgeCondition.multiAction();
+			AsyncMultiCommandAction<S> multiAction = edgeCondition.multiAction();
 			if (multiAction == null) {
 				logger.error("Expected multi-command action but got null. This should not happen.");
-				return CompletableFuture.completedFuture(Map.of());
+				return CompletableFuture.completedFuture(NodeActionResult.empty());
 			}
 			
 			return multiAction.apply(state, config)
@@ -111,69 +114,67 @@ public class ConditionalParallelNode extends Node {
 								})
 								.collect(Collectors.toList());
 						
-						Map<String, Object> commandUpdate = multiCommand.update();
+						S commandUpdateState = multiCommand.update();
 						
 						// If only one node, execute it directly
 						if (targetNodeIds.size() == 1) {
-							return executeSingleNode(targetNodeIds.get(0), state, config, commandUpdate);
+							return executeSingleNode(targetNodeIds.get(0), state, config, commandUpdateState);
 						}
 						
 						// Multiple nodes - execute in parallel
-						return executeParallelNodes(targetNodeIds, state, config, commandUpdate);
+						return executeParallelNodes(targetNodeIds, state, config, commandUpdateState);
 					});
 		}
 
-		private CompletableFuture<Map<String, Object>> executeSingleNode(
+		private CompletableFuture<NodeActionResult<S>> executeSingleNode(
 				String nodeId,
-				OverAllState state,
+				S state,
 				RunnableConfig config,
-				Map<String, Object> commandUpdate) {
-			Node.ActionFactory factory = nodeFactories.get(nodeId);
+				S commandUpdate) {
+			Node.ActionFactory<S> factory = nodeFactories.get(nodeId);
 			if (factory == null) {
 				logger.error("Node factory not found for node: {}", nodeId);
-				return CompletableFuture.completedFuture(commandUpdate);
+				return CompletableFuture.completedFuture(NodeActionResult.of(commandUpdate));
 			}
 
 			try {
-				AsyncNodeActionWithConfig action = factory.apply(compileConfig);
-				OverAllState stateSnapshot = state.snapShot().orElse(new OverAllState());
-				// Apply command updates to state snapshot
-				if (!commandUpdate.isEmpty()) {
-					stateSnapshot.updateStateWithKeyStrategies(commandUpdate, keyStrategyMap);
-				}
+				AsyncNodeActionWithConfig<S> action = factory.apply(compileConfig);
+				// TODO deep clone state first
 
-				return evalNodeActionSync(action, nodeId, stateSnapshot, config)
+				// TODO update state with command state update
+
+
+				return evalNodeActionSync(action, nodeId, state, config)
 						.thenApply(result -> {
+							// TODO merge command updates with node result
 							// Merge command updates with node result
-							Map<String, Object> merged = new HashMap<>(commandUpdate);
-							merged.putAll(result);
-							return merged;
+							return result;
 						});
 			} catch (Exception e) {
 				logger.error("Error executing single node {}: {}", nodeId, e.getMessage(), e);
-				return CompletableFuture.completedFuture(commandUpdate);
+				return CompletableFuture.completedFuture(NodeActionResult.of(commandUpdate));
 			}
 		}
 
-		private CompletableFuture<Map<String, Object>> executeParallelNodes(
+		private CompletableFuture<NodeActionResult<S>> executeParallelNodes(
 				List<String> targetNodeIds,
-				OverAllState state,
+				S state,
 				RunnableConfig config,
-				Map<String, Object> commandUpdate) {
+				S commandUpdate) {
 			
 			// Build actions and actionNodeIds dynamically
-			List<AsyncNodeActionWithConfig> actions = new ArrayList<>();
+			List<AsyncNodeActionWithConfig<S>> actions = new ArrayList<>();
 			List<String> actionNodeIds = new ArrayList<>();
 
 			for (String targetNodeId : targetNodeIds) {
-				Node.ActionFactory factory = nodeFactories.get(targetNodeId);
+				Node.ActionFactory<S> factory = nodeFactories.get(targetNodeId);
 				if (factory == null) {
 					logger.warn("Node factory not found for node: {}, skipping", targetNodeId);
 					continue;
 				}
 
 				try {
-					AsyncNodeActionWithConfig action = factory.apply(compileConfig);
+					AsyncNodeActionWithConfig<S> action = factory.apply(compileConfig);
 					actions.add(action);
 					actionNodeIds.add(targetNodeId);
 				} catch (Exception e) {
@@ -183,71 +184,68 @@ public class ConditionalParallelNode extends Node {
 
 			if (actions.isEmpty()) {
 				logger.warn("No valid actions found for parallel execution");
-				return CompletableFuture.completedFuture(commandUpdate);
+				return CompletableFuture.completedFuture(NodeActionResult.of(commandUpdate));
 			}
 
 			// Execute all actions in parallel
 			// Core logic aligned with ParallelNode.AsyncParallelNodeAction.apply()
-			List<CompletableFuture<Map<String, Object>>> futures = new ArrayList<>();
+			List<CompletableFuture<NodeActionResult<S>>> futures = new ArrayList<>();
 			for (int i = 0; i < actions.size(); i++) {
-				AsyncNodeActionWithConfig action = actions.get(i);
+				AsyncNodeActionWithConfig<S> action = actions.get(i);
 				String actualNodeId = actionNodeIds.get(i);
 
 				// Create a defensive copy of the state for each parallel action
 				// This prevents race conditions if actions modify the state in-place
-				OverAllState stateSnapshot = state.snapShot().orElse(new OverAllState());
-				
+				// TODO deep clone state first
+
 				// Apply command updates to state snapshot (specific to ConditionalParallelNode)
-				if (!commandUpdate.isEmpty()) {
-					stateSnapshot.updateStateWithKeyStrategies(commandUpdate, keyStrategyMap);
-				}
+				// TODO update state with command state update
 
 				// First try to get node-specific executor, then default executor, finally use DEFAULT_EXECUTOR
 				// Use nodeId (ConditionalParallelNode's formatted ID) for executor configuration, same as ParallelNode
 				Executor executor = ParallelNode.getExecutor(config, this.nodeId);
 
-				CompletableFuture<Map<String, Object>> future = evalNodeActionAsync(
-						action, actualNodeId, stateSnapshot, config, executor);
+				CompletableFuture<NodeActionResult<S>> future = evalNodeActionAsync(
+						action, actualNodeId, state, config, executor);
 				futures.add(future);
 			}
 
 			// Wait for all tasks to complete
 			return CompletableFuture.allOf(futures.toArray(CompletableFuture[]::new)).thenApply(v -> {
 				// Collect all results
-				List<Map<String, Object>> results = futures.stream()
+				List<NodeActionResult<S>> results = futures.stream()
 						.map(CompletableFuture::join)
 						.collect(Collectors.toList());
 
 				// Process parallel results (same as ParallelNode)
-				Map<String, Object> mergedResult = processParallelResults(results, state, actions);
+				NodeActionResult<S> mergedResult = processParallelResults(results, state, actions);
 				
-				// Merge with command updates (specific to ConditionalParallelNode)
-				Map<String, Object> finalResult = new HashMap<>(commandUpdate);
-				finalResult.putAll(mergedResult);
+				// TODO Merge with command updates (specific to ConditionalParallelNode)
+
 				
-				return finalResult;
+				return mergedResult;
 			});
 		}
 
-		private CompletableFuture<Map<String, Object>> evalNodeActionSync(
-				AsyncNodeActionWithConfig action,
+		private CompletableFuture<NodeActionResult<S>> evalNodeActionSync(
+				AsyncNodeActionWithConfig<S> action,
 				String actualNodeId,
-				OverAllState state,
+				S state,
 				RunnableConfig config) {
 			LifeListenerUtil.processListenersLIFO(actualNodeId,
-					new LinkedBlockingDeque<>(compileConfig.lifecycleListeners()), state.data(), config, NODE_BEFORE,
+					new LinkedBlockingDeque<>(compileConfig.lifecycleListeners()), state, config, NODE_BEFORE,
 					null);
 			return action.apply(state, config)
 					.whenComplete((result, throwable) -> LifeListenerUtil.processListenersLIFO(actualNodeId,
-							new LinkedBlockingDeque<>(compileConfig.lifecycleListeners()), state.data(), config,
+							new LinkedBlockingDeque<>(compileConfig.lifecycleListeners()), state, config,
 							NODE_AFTER,
 							throwable));
 		}
 
-		private CompletableFuture<Map<String, Object>> evalNodeActionAsync(
-				AsyncNodeActionWithConfig action,
+		private CompletableFuture<NodeActionResult<S>> evalNodeActionAsync(
+				AsyncNodeActionWithConfig<S> action,
 				String actualNodeId,
-				OverAllState state,
+				S state,
 				RunnableConfig config,
 				Executor executor) {
 
@@ -275,10 +273,10 @@ public class ConditionalParallelNode extends Node {
 		 * Process parallel execution results, handling GraphFlux, traditional Flux, and regular objects.
 		 * Priority: GraphFlux > traditional Flux > regular objects
 		 */
-		private Map<String, Object> processParallelResults(
-				List<Map<String, Object>> results,
-				OverAllState state,
-				List<AsyncNodeActionWithConfig> actionList) {
+		private NodeActionResult<S> processParallelResults(
+				List<NodeActionResult<S>> results,
+				S state,
+				List<AsyncNodeActionWithConfig<S>> actionList) {
 
 			// Check if any result contains GraphFlux or traditional Flux
 			List<GraphFlux<?>> graphFluxList = new ArrayList<>();

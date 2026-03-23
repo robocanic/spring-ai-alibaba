@@ -15,36 +15,39 @@
  */
 package com.alibaba.cloud.ai.graph.action;
 
-import com.alibaba.cloud.ai.graph.OverAllState;
+import com.alibaba.cloud.ai.graph.GraphState;
 
-import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 
 /**
  * Represents the outcome of a {@link CommandAction} within a graph. A {@code Command}
  * encapsulates instructions for the graph's next step, including an optional target node
- * to transition to and a map of updates to be applied to the {@link OverAllState}.
+ * to transition to and an optional partial state update.
  *
- * @param gotoNode containing the name of the next node to execute.
- * @param update A {@link Map} containing key-value pairs representing updates to be
- * merged into the current agent state. An empty map indicates no state updates.
+ * <p>
+ * The {@code update} field is a POJO of type {@code S} (or {@code null} for routing-only
+ * commands). When {@code update} is non-null, the framework calls
+ * {@link com.alibaba.cloud.ai.graph.utils.StateFieldScanner#toMap} skipping
+ * {@code null}-valued fields to produce a partial {@code Map} update.
+ * </p>
+ *
+ * @param <S> the concrete graph state type
+ * @param gotoNode the name of the next node to execute
+ * @param update optional partial state POJO; {@code null} means no state change
  */
-public record Command(String gotoNode, Map<String, Object> update) {
+public record Command<S extends GraphState>(String gotoNode, S update) {
 
 	public Command {
 		Objects.requireNonNull(gotoNode, "gotoNode cannot be null");
-		Objects.requireNonNull(update, "update cannot be null");
+		// update may be null (routing-only command)
 	}
 
 	/**
-	 * Constructs a {@code Command} that specifies only the next node to transition to,
-	 * with no state updates. If {@code gotoNode} is null, it will be treated as an empty
-	 * {@link Optional}.
+	 * Constructs a routing-only {@code Command} with no state update.
 	 * @param gotoNode The name of the next node to transition to. Can be null.
 	 */
 	public Command(String gotoNode) {
-		this(gotoNode, Map.of());
+		this(gotoNode, null);
 	}
 
 }

@@ -32,7 +32,7 @@ import static java.lang.String.format;
 /**
  * The type Processed nodes edges and config.
  */
-public record ProcessedNodesEdgesAndConfig(StateGraph.Nodes nodes, StateGraph.Edges edges, Set<String> interruptsBefore,
+public record ProcessedNodesEdgesAndConfig<S extends GraphState>(StateGraph.Nodes<S> nodes, StateGraph.Edges edges, Set<String> interruptsBefore,
 										   Set<String> interruptsAfter, Map<String, KeyStrategy> keyStrategyMap) {
 
 	/**
@@ -41,7 +41,7 @@ public record ProcessedNodesEdgesAndConfig(StateGraph.Nodes nodes, StateGraph.Ed
 	 * @param stateGraph the state graph
 	 * @param config     the config
 	 */
-	ProcessedNodesEdgesAndConfig(StateGraph stateGraph, CompileConfig config) {
+	ProcessedNodesEdgesAndConfig(StateGraph<S> stateGraph, CompileConfig<S> config) {
 		this(stateGraph.nodes, stateGraph.edges, config.interruptsBefore(), config.interruptsAfter(), Map.of());
 	}
 
@@ -53,18 +53,18 @@ public record ProcessedNodesEdgesAndConfig(StateGraph.Nodes nodes, StateGraph.Ed
 	 * @return the processed nodes edges and config
 	 * @throws GraphStateException the graph state exception
 	 */
-	static ProcessedNodesEdgesAndConfig process(StateGraph stateGraph, CompileConfig config)
+	static <S extends GraphState> ProcessedNodesEdgesAndConfig<S> process(StateGraph<S> stateGraph, CompileConfig<S> config)
 			throws GraphStateException {
 
 		var subgraphNodes = stateGraph.nodes.onlySubStateGraphNodes();
 
 		if (subgraphNodes.isEmpty()) {
-			return new ProcessedNodesEdgesAndConfig(stateGraph, config);
+			return new ProcessedNodesEdgesAndConfig<>(stateGraph, config);
 		}
 
 		var interruptsBefore = config.interruptsBefore();
 		var interruptsAfter = config.interruptsAfter();
-		var nodes = new StateGraph.Nodes(stateGraph.nodes.exceptSubStateGraphNodes());
+		var nodes = new StateGraph.Nodes<>(stateGraph.nodes.exceptSubStateGraphNodes());
 		var edges = new StateGraph.Edges(stateGraph.edges.elements);
 
 		Map<String, KeyStrategy> keyStrategyMap = new LinkedHashMap<>();
@@ -76,10 +76,10 @@ public record ProcessedNodesEdgesAndConfig(StateGraph.Nodes nodes, StateGraph.Ed
             // Merges keyStrategies of this subgraph.
             subgraphNode.keyStrategies().forEach(keyStrategyMap::putIfAbsent);
             // Merges the keyStrategyMap aggregated from recursive subgraphs.
-            ProcessedNodesEdgesAndConfig processedSubGraph = process(sgWorkflow, config);
+            ProcessedNodesEdgesAndConfig<S> processedSubGraph = process(sgWorkflow, config);
             processedSubGraph.keyStrategyMap().forEach(keyStrategyMap::putIfAbsent);
 
-			StateGraph.Nodes processedSubGraphNodes = processedSubGraph.nodes;
+			StateGraph.Nodes<S> processedSubGraphNodes = processedSubGraph.nodes;
 			StateGraph.Edges processedSubGraphEdges = processedSubGraph.edges;
 
 			//
@@ -167,6 +167,6 @@ public record ProcessedNodesEdgesAndConfig(StateGraph.Nodes nodes, StateGraph.Ed
                     .forEach(nodes.elements::add);
 		}
 
-		return new ProcessedNodesEdgesAndConfig(nodes, edges, interruptsBefore, interruptsAfter, keyStrategyMap);
+		return new ProcessedNodesEdgesAndConfig<>(nodes, edges, interruptsBefore, interruptsAfter, keyStrategyMap);
 	}
 }

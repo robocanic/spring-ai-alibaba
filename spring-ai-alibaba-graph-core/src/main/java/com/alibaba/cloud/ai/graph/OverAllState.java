@@ -20,7 +20,6 @@ import com.alibaba.cloud.ai.graph.store.Store;
 import org.springframework.ai.util.json.JsonParser;
 import org.springframework.util.CollectionUtils;
 
-import java.io.Serializable;
 import java.util.*;
 import java.util.function.BinaryOperator;
 import java.util.function.Function;
@@ -74,7 +73,7 @@ import static java.util.Optional.ofNullable;
  * @author disaster
  * @since 1.0.0.1
  */
-public final class OverAllState implements Serializable {
+public final class OverAllState implements GraphState {
 	public static final Object MARK_FOR_REMOVAL = new Object();
 
 	/**

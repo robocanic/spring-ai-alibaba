@@ -15,33 +15,36 @@
  */
 package com.alibaba.cloud.ai.graph.action;
 
-import com.alibaba.cloud.ai.graph.OverAllState;
-import io.opentelemetry.context.Context;
-
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 
+import com.alibaba.cloud.ai.graph.GraphState;
+
+import io.opentelemetry.context.Context;
+
 /**
- * Represents an asynchronous edge action that operates on an agent state and returns a
- * new route.
+ * Represents an asynchronous edge action that reads the graph state and returns the next
+ * node name.
  *
+ * @param <S> the concrete graph state type
  */
 @FunctionalInterface
-public interface AsyncEdgeAction extends Function<OverAllState, CompletableFuture<String>> {
+public interface AsyncEdgeAction<S extends GraphState> extends Function<S, CompletableFuture<String>> {
 
 	/**
 	 * Applies this action to the given agent state.
 	 * @param state the agent state
 	 * @return a CompletableFuture representing the result of the action
 	 */
-	CompletableFuture<String> apply(OverAllState state);
+	CompletableFuture<String> apply(S state);
 
 	/**
 	 * Creates an asynchronous edge action from a synchronous edge action.
+	 * @param <S> the concrete graph state type
 	 * @param syncAction the synchronous edge action
 	 * @return an asynchronous edge action
 	 */
-	static AsyncEdgeAction edge_async(EdgeAction syncAction) {
+	static <S extends GraphState> AsyncEdgeAction<S> edge_async(EdgeAction<S> syncAction) {
 		return state -> {
 			Context context = Context.current();
 			CompletableFuture<String> result = new CompletableFuture<>();

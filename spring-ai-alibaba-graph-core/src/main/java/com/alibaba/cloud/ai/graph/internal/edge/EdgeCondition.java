@@ -15,8 +15,10 @@
  */
 package com.alibaba.cloud.ai.graph.internal.edge;
 
+import com.alibaba.cloud.ai.graph.GraphState;
 import com.alibaba.cloud.ai.graph.action.AsyncCommandAction;
 import com.alibaba.cloud.ai.graph.action.AsyncMultiCommandAction;
+import org.jetbrains.annotations.NotNull;
 
 import java.util.Map;
 
@@ -42,14 +44,14 @@ public record EdgeCondition(Object action, Map<String, String> mappings) {
 	/**
 	 * Creates an EdgeCondition with AsyncCommandAction (single node routing).
 	 */
-	public static EdgeCondition single(AsyncCommandAction action, Map<String, String> mappings) {
+	public static <S extends GraphState> EdgeCondition single(AsyncCommandAction<S> action, Map<String, String> mappings) {
 		return new EdgeCondition(action, mappings);
 	}
 
 	/**
 	 * Creates an EdgeCondition with AsyncMultiCommandAction (multi-node parallel routing).
 	 */
-	public static EdgeCondition multi(AsyncMultiCommandAction action, Map<String, String> mappings) {
+	public static <S extends GraphState> EdgeCondition multi(AsyncMultiCommandAction<S> action, Map<String, String> mappings) {
 		return new EdgeCondition(action, mappings);
 	}
 
@@ -65,18 +67,19 @@ public record EdgeCondition(Object action, Map<String, String> mappings) {
 	 * Gets the action as AsyncCommandAction if it's a single-node action.
 	 * @return the AsyncCommandAction, or null if it's a multi-node action
 	 */
-	public AsyncCommandAction singleAction() {
-		return action instanceof AsyncCommandAction ? (AsyncCommandAction) action : null;
+	public <S extends GraphState>  AsyncCommandAction<S> singleAction() {
+		return action instanceof AsyncCommandAction ? (AsyncCommandAction<S>) action : null;
 	}
 
 	/**
 	 * Gets the action as AsyncMultiCommandAction if it's a multi-node action.
 	 * @return the AsyncMultiCommandAction, or null if it's a single-node action
 	 */
-	public AsyncMultiCommandAction multiAction() {
-		return action instanceof AsyncMultiCommandAction ? (AsyncMultiCommandAction) action : null;
+	public <S extends GraphState> AsyncMultiCommandAction<S> multiAction() {
+		return action instanceof AsyncMultiCommandAction ? (AsyncMultiCommandAction<S>) action : null;
 	}
 
+	@NotNull
 	@Override
 	public String toString() {
 		return format("EdgeCondition[ %s, mapping=%s", action != null ? "action" : "null", mappings);

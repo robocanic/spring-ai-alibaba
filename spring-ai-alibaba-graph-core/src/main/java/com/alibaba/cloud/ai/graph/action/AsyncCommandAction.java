@@ -15,19 +15,31 @@
  */
 package com.alibaba.cloud.ai.graph.action;
 
-import com.alibaba.cloud.ai.graph.OverAllState;
+import com.alibaba.cloud.ai.graph.GraphState;
 import com.alibaba.cloud.ai.graph.RunnableConfig;
 import io.opentelemetry.context.Context;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.function.BiFunction;
 
-public interface AsyncCommandAction extends BiFunction<OverAllState, RunnableConfig, CompletableFuture<Command>> {
+/**
+ * Asynchronous action that returns a routing {@link Command}.
+ *
+ * @param <S> the concrete graph state type
+ */
+public interface AsyncCommandAction<S extends GraphState>
+		extends BiFunction<S, RunnableConfig, CompletableFuture<Command<S>>> {
 
-	static AsyncCommandAction node_async(CommandAction syncAction) {
+	/**
+	 * Creates an async command action from a synchronous one.
+	 * @param <S> the concrete graph state type
+	 * @param syncAction the synchronous action
+	 * @return an async wrapper
+	 */
+	static <S extends GraphState> AsyncCommandAction<S> node_async(CommandAction<S> syncAction) {
 		return (state, config) -> {
 			Context context = Context.current();
-			var result = new CompletableFuture<Command>();
+			var result = new CompletableFuture<Command<S>>();
 			try {
 				result.complete(syncAction.apply(state, config));
 			}
@@ -38,12 +50,24 @@ public interface AsyncCommandAction extends BiFunction<OverAllState, RunnableCon
 		};
 	}
 
-	static AsyncCommandAction of(AsyncEdgeAction action) {
+	/**
+	 * Creates an async command action from an async edge action.
+	 * @param <S> the concrete graph state type
+	 * @param action the async edge action
+	 * @return an async command action
+	 */
+	static <S extends GraphState> AsyncCommandAction<S> of(AsyncEdgeAction<S> action) {
 		return (state, config) -> action.apply(state).thenApply(Command::new);
 	}
 
-
-	static AsyncCommandAction of(AsyncEdgeActionWithConfig action) {
-		return (state, config) -> action.apply(state,config).thenApply(Command::new);
+	/**
+	 * Creates an async command action from an async edge action with config.
+	 * @param <S> the concrete graph state type
+	 * @param action the async edge action with config
+	 * @return an async command action
+	 */
+	static <S extends GraphState> AsyncCommandAction<S> of(AsyncEdgeActionWithConfig<S> action) {
+		return (state, config) -> action.apply(state, config).thenApply(Command::new);
 	}
+
 }

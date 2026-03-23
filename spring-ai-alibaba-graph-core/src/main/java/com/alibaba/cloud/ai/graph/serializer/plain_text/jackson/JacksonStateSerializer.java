@@ -18,7 +18,7 @@ package com.alibaba.cloud.ai.graph.serializer.plain_text.jackson;
 import com.alibaba.cloud.ai.graph.GraphResponse;
 import com.alibaba.cloud.ai.graph.OverAllState;
 import com.alibaba.cloud.ai.graph.serializer.Serializer;
-import com.alibaba.cloud.ai.graph.serializer.plain_text.PlainTextStateSerializer;
+import com.alibaba.cloud.ai.graph.serializer.StateSerializer;
 import com.alibaba.cloud.ai.graph.state.AgentStateFactory;
 import org.springframework.ai.chat.model.ChatResponse;
 
@@ -39,10 +39,10 @@ import com.fasterxml.jackson.datatype.jdk8.Jdk8Module;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
 /**
- * Base Implementation of {@link PlainTextStateSerializer} using Jackson library. Need to
+ * Base Implementation of {@link StateSerializer} using Jackson library. Need to
  * be extended from specific state implementation
  */
-public abstract class JacksonStateSerializer extends PlainTextStateSerializer {
+public abstract class JacksonStateSerializer extends StateSerializer {
 
 	protected final ObjectMapper objectMapper;
 

@@ -15,10 +15,9 @@
  */
 package com.alibaba.cloud.ai.graph.action;
 
-import com.alibaba.cloud.ai.graph.OverAllState;
+import com.alibaba.cloud.ai.graph.GraphState;
 import com.alibaba.cloud.ai.graph.RunnableConfig;
 
-import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -26,13 +25,15 @@ import java.util.Optional;
  * <p>
  * This interface provides two hook points for interruption:
  * <ul>
- *   <li>{@link #interrupt(String, OverAllState, RunnableConfig)} - Called BEFORE the node action's apply() method</li>
- *   <li>{@link #interruptAfter(String, OverAllState, Map, RunnableConfig)} - Called AFTER the node action's apply() method</li>
+ *   <li>{@link #interrupt(String, GraphState, RunnableConfig)} - Called BEFORE the node action's apply() method</li>
+ *   <li>{@link #interruptAfter(String, GraphState, NodeActionResult, RunnableConfig)} - Called AFTER the node action's apply() method</li>
  * </ul>
  * <p>
  * The execution flow is: interrupt() -> apply() -> interruptAfter()
+ *
+ * @param <S> the concrete graph state type
  */
-public interface InterruptableAction {
+public interface InterruptableAction<S extends GraphState> {
 
 	/**
 	 * Determines whether the graph execution should be interrupted BEFORE the current node executes.
@@ -45,7 +46,7 @@ public interface InterruptableAction {
 	 * execution should be interrupted. Returns an empty {@link Optional} to continue
 	 * execution.
 	 */
-	Optional<InterruptionMetadata> interrupt(String nodeId, OverAllState state, RunnableConfig config);
+	Optional<InterruptionMetadata> interrupt(String nodeId, S state, RunnableConfig config);
 
 	/**
 	 * Determines whether the graph execution should be interrupted AFTER the current node executes.
@@ -64,8 +65,8 @@ public interface InterruptableAction {
 	 * execution should be interrupted. Returns an empty {@link Optional} to continue
 	 * execution. Default implementation returns empty (no interruption).
 	 */
-	default Optional<InterruptionMetadata> interruptAfter(String nodeId, OverAllState state,
-			Map<String, Object> actionResult, RunnableConfig config) {
+	default Optional<InterruptionMetadata> interruptAfter(String nodeId, S state,
+			NodeActionResult<S> actionResult, RunnableConfig config) {
 		return Optional.empty();
 	}
 

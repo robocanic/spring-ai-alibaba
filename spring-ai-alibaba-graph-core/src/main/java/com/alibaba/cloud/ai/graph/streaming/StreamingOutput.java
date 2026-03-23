@@ -15,8 +15,8 @@
  */
 package com.alibaba.cloud.ai.graph.streaming;
 
+import com.alibaba.cloud.ai.graph.GraphState;
 import com.alibaba.cloud.ai.graph.NodeOutput;
-import com.alibaba.cloud.ai.graph.OverAllState;
 
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;
@@ -27,7 +27,14 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import static java.lang.String.format;
 
-public class StreamingOutput<T> extends NodeOutput {
+/**
+ * Represents a streaming output from a node, extending {@link NodeOutput} with a generic
+ * state type.
+ *
+ * @param <T> the type of the origin data item emitted per streaming chunk
+ * @param <S> the concrete graph state type
+ */
+public class StreamingOutput<T, S extends GraphState> extends NodeOutput<S> {
 
 	@Deprecated
 	private final String chunk;
@@ -39,7 +46,7 @@ public class StreamingOutput<T> extends NodeOutput {
 
 	private OutputType outputType;
 
-	public StreamingOutput(T originData, String node, OverAllState state) {
+	public StreamingOutput(T originData, String node, S state) {
 		super(node, state);
 		this.chunk = null;
 		this.message = null;
@@ -48,7 +55,7 @@ public class StreamingOutput<T> extends NodeOutput {
 	}
 
 	// agentName is for graph and node working on Agent mode
-	public StreamingOutput(T originData, String node, String agentName, OverAllState state) {
+	public StreamingOutput(T originData, String node, String agentName, S state) {
 		super(node, agentName, state);
 		this.chunk = null;
 		this.message = null;
@@ -56,7 +63,7 @@ public class StreamingOutput<T> extends NodeOutput {
 		trySetTokenUsage(originData);
 	}
 
-	public StreamingOutput(T originData, String node, String agentName, OverAllState state, OutputType outputType) {
+	public StreamingOutput(T originData, String node, String agentName, S state, OutputType outputType) {
 		super(node, agentName, state);
 		this.chunk = null;
 		this.message = null;
@@ -66,7 +73,7 @@ public class StreamingOutput<T> extends NodeOutput {
 	}
 
 	// new constructor to support Message
-	public StreamingOutput(Message message, T originData, String node, String agentName, OverAllState state) {
+	public StreamingOutput(Message message, T originData, String node, String agentName, S state) {
 		super(node, agentName, state);
 		this.message = message;
 		this.originData = originData;
@@ -74,7 +81,8 @@ public class StreamingOutput<T> extends NodeOutput {
 		trySetTokenUsage(originData);
 	}
 
-	public StreamingOutput(Message message, T originData, String node, String agentName, OverAllState state, OutputType outputType) {
+	public StreamingOutput(Message message, T originData, String node, String agentName, S state,
+			OutputType outputType) {
 		super(node, agentName, state);
 		this.message = message;
 		this.originData = originData;
@@ -83,14 +91,14 @@ public class StreamingOutput<T> extends NodeOutput {
 		trySetTokenUsage(originData);
 	}
 
-	public StreamingOutput(Message message, String node, String agentName, OverAllState state) {
+	public StreamingOutput(Message message, String node, String agentName, S state) {
 		super(node, agentName, state);
 		this.message = message;
 		this.chunk = extractChunkFromMessage(message);
 		this.originData = null;
 	}
 
-	public StreamingOutput(Message message, String node, String agentName, OverAllState state, OutputType outputType) {
+	public StreamingOutput(Message message, String node, String agentName, S state, OutputType outputType) {
 		super(node, agentName, state);
 		this.message = message;
 		this.chunk = extractChunkFromMessage(message);
@@ -98,8 +106,8 @@ public class StreamingOutput<T> extends NodeOutput {
 		this.outputType = outputType;
 	}
 
-	// Constructor for Message with OverAllState and Usage (for buildNodeOutput)
-	public StreamingOutput(Message message, String node, String agentName, OverAllState state, Usage usage) {
+	// Constructor for Message with state and Usage (for buildNodeOutput)
+	public StreamingOutput(Message message, String node, String agentName, S state, Usage usage) {
 		super(node, agentName, state);
 		this.message = message;
 		this.chunk = extractChunkFromMessage(message);
@@ -107,7 +115,8 @@ public class StreamingOutput<T> extends NodeOutput {
 		setTokenUsage(usage);
 	}
 
-	public StreamingOutput(Message message, String node, String agentName, OverAllState state, Usage usage, OutputType outputType) {
+	public StreamingOutput(Message message, String node, String agentName, S state, Usage usage,
+			OutputType outputType) {
 		super(node, agentName, state);
 		this.message = message;
 		this.chunk = extractChunkFromMessage(message);
@@ -117,7 +126,7 @@ public class StreamingOutput<T> extends NodeOutput {
 	}
 
 	// Constructor for node output without Message but with Usage
-	public StreamingOutput(String node, String agentName, OverAllState state, Usage usage) {
+	public StreamingOutput(String node, String agentName, S state, Usage usage) {
 		super(node, agentName, state);
 		this.message = null;
 		this.chunk = null;
@@ -125,7 +134,7 @@ public class StreamingOutput<T> extends NodeOutput {
 		setTokenUsage(usage);
 	}
 
-	public StreamingOutput(String node, String agentName, OverAllState state, Usage usage, OutputType outputType) {
+	public StreamingOutput(String node, String agentName, S state, Usage usage, OutputType outputType) {
 		super(node, agentName, state);
 		this.message = null;
 		this.chunk = null;
@@ -135,7 +144,7 @@ public class StreamingOutput<T> extends NodeOutput {
 	}
 
 	@Deprecated
-	public StreamingOutput(String chunk, T originData, String node, String agentName, OverAllState state) {
+	public StreamingOutput(String chunk, T originData, String node, String agentName, S state) {
 		super(node, agentName, state);
 		this.chunk = chunk;
 		this.message = null;
@@ -144,7 +153,7 @@ public class StreamingOutput<T> extends NodeOutput {
 	}
 
 	@Deprecated
-	public StreamingOutput(String chunk, String node, String agentName, OverAllState state) {
+	public StreamingOutput(String chunk, String node, String agentName, S state) {
 		super(node, agentName, state);
 		this.chunk = chunk;
 		this.message = null;
@@ -160,11 +169,11 @@ public class StreamingOutput<T> extends NodeOutput {
 		return null;
 	}
 
-
 	private void trySetTokenUsage(T originData) {
 		if (originData instanceof ChatResponse chatResponse) {
 			setTokenUsage(chatResponse.getMetadata().getUsage());
-		} else if (originData instanceof Usage usage) {
+		}
+		else if (originData instanceof Usage usage) {
 			setTokenUsage(usage);
 		}
 	}

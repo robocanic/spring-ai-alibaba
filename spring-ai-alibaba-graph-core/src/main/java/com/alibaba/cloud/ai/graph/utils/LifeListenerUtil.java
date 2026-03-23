@@ -16,12 +16,12 @@
 package com.alibaba.cloud.ai.graph.utils;
 
 import com.alibaba.cloud.ai.graph.GraphLifecycleListener;
+import com.alibaba.cloud.ai.graph.GraphState;
 import com.alibaba.cloud.ai.graph.RunnableConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Deque;
-import java.util.Map;
 
 import static com.alibaba.cloud.ai.graph.StateGraph.*;
 import static com.alibaba.cloud.ai.graph.StateGraph.NODE_AFTER;
@@ -47,15 +47,15 @@ public class LifeListenerUtil {
 	 * @param scene The scene or event type (START, END, ERROR, NODE_BEFORE, NODE_AFTER)
 	 * @param e The exception object (used only in ERROR scene)
 	 */
-	public static void processListenersLIFO(String currentNodeId, Deque<GraphLifecycleListener> listeners,
-			Map<String, Object> currentState, RunnableConfig runnableConfig, String scene, Throwable e) {
+	public static <S extends GraphState> void processListenersLIFO(String currentNodeId, Deque<GraphLifecycleListener<S>> listeners,
+									 S currentState, RunnableConfig runnableConfig, String scene, Throwable e) {
 		// Base case: if no listeners remain, return
 		if (listeners.isEmpty()) {
 			return;
 		}
 
 		// Retrieve and remove the last listener from the deque (LIFO order)
-		GraphLifecycleListener listener = listeners.pollLast();
+		GraphLifecycleListener<S> listener = listeners.pollLast();
 
 		try {
 			// Invoke the appropriate listener method based on the scene

@@ -15,13 +15,23 @@
  */
 package com.alibaba.cloud.ai.graph.action;
 
-import com.alibaba.cloud.ai.graph.OverAllState;
+import com.alibaba.cloud.ai.graph.GraphState;
 
-import java.util.Map;
-
+/**
+ * Functional interface representing a synchronous node action.
+ *
+ * @param <S> the concrete graph state type, must implement {@link GraphState}
+ */
 @FunctionalInterface
-public interface NodeAction {
+public interface NodeAction<S extends GraphState> {
 
-	Map<String, Object> apply(OverAllState state) throws Exception;
+	/**
+	 * Applies this action to the given state.
+	 * @param state the current graph state
+	 * @return a {@link NodeActionResult} carrying the updated state and optional streaming
+	 * flux
+	 * @throws Exception if an error occurs during the action
+	 */
+	NodeActionResult<S> apply(S state) throws Exception;
 
 }
