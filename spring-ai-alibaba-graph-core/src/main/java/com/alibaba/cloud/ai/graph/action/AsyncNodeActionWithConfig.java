@@ -19,6 +19,7 @@ import com.alibaba.cloud.ai.graph.GraphState;
 import com.alibaba.cloud.ai.graph.RunnableConfig;
 import io.opentelemetry.context.Context;
 
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.BiFunction;
 
@@ -89,12 +90,12 @@ public interface AsyncNodeActionWithConfig<S extends GraphState>
 		}
 
 		@Override
-		public java.util.Optional<InterruptionMetadata> interrupt(String nodeId, S state, RunnableConfig config) {
+		public Optional<InterruptionMetadata<S>> interrupt(String nodeId, S state, RunnableConfig config) {
 			return interruptable.interrupt(nodeId, state, config);
 		}
 
 		@Override
-		public java.util.Optional<InterruptionMetadata> interruptAfter(String nodeId, S state,
+		public Optional<InterruptionMetadata<S>> interruptAfter(String nodeId, S state,
 				NodeActionResult<S> actionResult, RunnableConfig config) {
 			return interruptable.interruptAfter(nodeId, state, actionResult, config);
 		}

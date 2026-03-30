@@ -40,7 +40,7 @@ import org.springframework.ai.zhipuai.ZhiPuAiAssistantMessage;
 import java.util.Collection;
 import java.util.Map;
 
-public class SpringAIJacksonStateSerializer extends JacksonStateSerializer {
+public class SpringAIJacksonStateSerializer extends JacksonStateSerializer<OverAllState> {
 
 	public SpringAIJacksonStateSerializer(AgentStateFactory<OverAllState> stateFactory) {
 		this(stateFactory, new ObjectMapper());

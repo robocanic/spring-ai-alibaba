@@ -67,7 +67,7 @@ import static com.alibaba.cloud.ai.graph.internal.node.ParallelNode.getExecutor;
  * demonstrates inheritance by extending BaseGraphExecutor. It also demonstrates
  * polymorphism through its specific implementation of execute.
  */
-public class NodeExecutor extends BaseGraphExecutor {
+public class NodeExecutor {
 
 	private static final Logger log = LoggerFactory.getLogger(NodeExecutor.class);
 
@@ -84,7 +84,6 @@ public class NodeExecutor extends BaseGraphExecutor {
 	 * @param resultValue the atomic reference to store the result value
 	 * @return Flux of GraphResponse with execution result
 	 */
-	@Override
 	public Flux<GraphResponse<NodeOutput<?>>> execute(GraphRunnerContext context, AtomicReference<Object> resultValue) {
 		return executeNode(context, resultValue);
 	}
@@ -114,7 +113,8 @@ public class NodeExecutor extends BaseGraphExecutor {
 						throw new RuntimeException();
 					}
 				});
-				Optional<InterruptionMetadata<?>> interruptMetadata = ((InterruptableAction<?>) action)
+				@SuppressWarnings({"unchecked", "rawtypes"})
+				Optional<InterruptionMetadata<?>> interruptMetadata = ((InterruptableAction) action)
 					.interrupt(currentNodeId, context.cloneState(context.getCurrentStateData()), context.getConfig());
 				if (interruptMetadata.isPresent()) {
 					resultValue.set(interruptMetadata.get());
@@ -124,9 +124,9 @@ public class NodeExecutor extends BaseGraphExecutor {
 
 			context.doListeners(NODE_BEFORE, null);
 			
-			@SuppressWarnings("unchecked")
+			@SuppressWarnings({"unchecked", "rawtypes"})
 			CompletableFuture<NodeActionResult<?>> actionFuture =
-					(CompletableFuture<NodeActionResult<?>>) (CompletableFuture<?>) action.apply(
+					(CompletableFuture<NodeActionResult<?>>) (CompletableFuture<?>) ((AsyncNodeActionWithConfig) action).apply(
 							context.getOverallState(), context.getConfig());
 			
 			return Mono.fromFuture(actionFuture)
@@ -191,13 +191,17 @@ public class NodeExecutor extends BaseGraphExecutor {
 			// Check for ParallelGraphFlux (returned from ParallelNode)
 			Optional<ParallelGraphFlux> embedParallelGraphFlux = getEmbedParallelGraphFlux(updateState);
 			if (embedParallelGraphFlux.isPresent()) {
-				return handleParallelGraphFlux(context, embedParallelGraphFlux.get(), updateState, resultValue);
+				@SuppressWarnings("unchecked")
+				Flux<GraphResponse<NodeOutput<?>>> parallelResult = (Flux<GraphResponse<NodeOutput<?>>>) (Flux<?>) handleParallelGraphFlux(context, embedParallelGraphFlux.get(), updateState, resultValue);
+				return parallelResult;
 			}
 
 			// Check for GraphFlux (backward compatibility)
 			Optional<GraphFlux<?>> embedGraphFlux = getEmbedGraphFlux(updateState,context);
 			if (embedGraphFlux.isPresent()) {
-				return handleGraphFlux(context, embedGraphFlux.get(), updateState, resultValue);
+				@SuppressWarnings("unchecked")
+				Flux<GraphResponse<NodeOutput<?>>> graphFluxResult = (Flux<GraphResponse<NodeOutput<?>>>) (Flux<?>) handleGraphFlux(context, embedGraphFlux.get(), updateState, resultValue);
+				return graphFluxResult;
 			}
 
 			// Check for interruptAfter hook (after apply() but before state merge)
@@ -234,12 +238,15 @@ public class NodeExecutor extends BaseGraphExecutor {
 				Command nextCommand = context.nextNodeId(context.getCurrentNodeId(), context.getCurrentStateData());
 				context.setNextNodeId(nextCommand.gotoNode());
 			}
-			NodeOutput output = context.buildNodeOutputAndAddCheckpoint(updateState);
+			NodeOutput<?> output = context.buildNodeOutputAndAddCheckpoint(updateState);
 
 			context.doListeners(NODE_AFTER, null);
 			// Recursively call the main execution handler
-			return Flux.just(GraphResponse.of(output))
-				.concatWith(Flux.defer(() -> mainGraphExecutor.execute(context, resultValue)));
+			@SuppressWarnings({"unchecked", "rawtypes"})
+			Flux first = Flux.just(GraphResponse.of(output));
+			@SuppressWarnings({"unchecked", "rawtypes"})
+			Flux second = Flux.defer(() -> mainGraphExecutor.execute(context, resultValue));
+			return Flux.concat(first, second);
 		}
 		catch (Exception e) {
 			return Flux.just(GraphResponse.error(e));
@@ -331,7 +338,7 @@ public class NodeExecutor extends BaseGraphExecutor {
 					try {
 						log.info("Received element of type '{}' in embedded Flux for key '{}', wrapping in StreamingOutput.",
 							element.getClass().getName(), key);
-						StreamingOutput<?> streamingOutput = context.buildStreamingOutput(element, nodeId, true);
+						StreamingOutput<?, ?> streamingOutput = context.buildStreamingOutput(element, nodeId, true);
 						GraphResponse<NodeOutput> graphResponse = GraphResponse.of(streamingOutput);
 						lastGraphResponseRef.set(graphResponse);
 						return graphResponse;
@@ -617,8 +624,11 @@ public class NodeExecutor extends BaseGraphExecutor {
 			}
 		});
 
-		return processedFlux
-			.concatWith(updateContextMono.thenMany(Flux.defer(() -> mainGraphExecutor.execute(context, resultValue))));
+		@SuppressWarnings({"unchecked", "rawtypes"})
+		Flux first = processedFlux;
+		@SuppressWarnings({"unchecked", "rawtypes"})
+		Flux second = updateContextMono.thenMany(Flux.defer(() -> mainGraphExecutor.execute(context, resultValue)));
+		return Flux.concat(first, second);
 	}
 
 	/**
@@ -627,11 +637,12 @@ public class NodeExecutor extends BaseGraphExecutor {
 	 * @param partialState the partial state containing flux instances
 	 * @return an Optional containing Data with the flux if found, empty otherwise
 	 */
+	@SuppressWarnings("unchecked")
 	public Optional<Flux<GraphResponse<NodeOutput<?>>>> getEmbedFlux(GraphRunnerContext context,
 			Map<String, Object> partialState) {
 		return partialState.entrySet().stream().filter(e -> e.getValue() instanceof Flux<?>).findFirst().map(e -> {
 			var chatFlux = (Flux<?>) e.getValue();
-			return transformFluxToGraphResponse(context, chatFlux, e.getKey(), context.getCurrentNodeId());
+			return (Flux<GraphResponse<NodeOutput<?>>>) (Flux<?>) transformFluxToGraphResponse(context, chatFlux, e.getKey(), context.getCurrentNodeId());
 		});
 	}
 
@@ -786,8 +797,11 @@ public class NodeExecutor extends BaseGraphExecutor {
 			}
 		});
 
-		return processedFlux
-				.concatWith(updateContextMono.thenMany(Flux.defer(() -> mainGraphExecutor.execute(context, resultValue))));
+		@SuppressWarnings({"unchecked", "rawtypes"})
+		Flux first = processedFlux;
+		@SuppressWarnings({"unchecked", "rawtypes"})
+		Flux second = updateContextMono.thenMany(Flux.defer(() -> mainGraphExecutor.execute(context, resultValue)));
+		return Flux.concat(first, second);
 	}
 
 	/**
@@ -810,7 +824,8 @@ public class NodeExecutor extends BaseGraphExecutor {
 		}
 
 		try {
-			OverAllState stateBeforeMerge = context.cloneState(context.getCurrentStateData());
+			@SuppressWarnings("unchecked")
+			OverAllState stateBeforeMerge = (OverAllState) context.cloneState(context.getCurrentStateData());
 			// Wrap the Map delta into a NodeActionResult so that interruptAfter receives the correct type
 			NodeActionResult<OverAllState> wrappedResult =
 					NodeActionResult.ofLegacy(stateBeforeMerge, actionResult);
@@ -909,8 +924,11 @@ public class NodeExecutor extends BaseGraphExecutor {
 			}
 		});
 
-		return mergedFlux
-				.concatWith(updateContextMono.thenMany(Flux.defer(() -> mainGraphExecutor.execute(context, resultValue))));
+		@SuppressWarnings({"unchecked", "rawtypes"})
+		Flux first = mergedFlux;
+		@SuppressWarnings({"unchecked", "rawtypes"})
+		Flux second = updateContextMono.thenMany(Flux.defer(() -> mainGraphExecutor.execute(context, resultValue)));
+		return Flux.concat(first, second);
 	}
 
 	/**
@@ -934,8 +952,11 @@ public class NodeExecutor extends BaseGraphExecutor {
 
 		NodeOutput output = context.buildNodeOutputAndAddCheckpoint(partialState);
 		// Recursively call the main execution handler
-		return Flux.just(GraphResponse.of(output))
-				.concatWith(Flux.defer(() -> mainGraphExecutor.execute(context, resultValue)));
+		@SuppressWarnings({"unchecked", "rawtypes"})
+		Flux first = Flux.just(GraphResponse.of(output));
+		@SuppressWarnings({"unchecked", "rawtypes"})
+		Flux second = Flux.defer(() -> mainGraphExecutor.execute(context, resultValue));
+		return Flux.concat(first, second);
 	}
 }
 

@@ -18,6 +18,7 @@ package com.alibaba.cloud.ai.graph;
 import com.alibaba.cloud.ai.graph.action.AsyncNodeActionWithConfig;
 import com.alibaba.cloud.ai.graph.action.Command;
 import com.alibaba.cloud.ai.graph.internal.edge.EdgeValue;
+import com.alibaba.cloud.ai.graph.checkpoint.BaseCheckpointSaver;
 import com.alibaba.cloud.ai.graph.checkpoint.Checkpoint;
 import com.alibaba.cloud.ai.graph.exception.RunnableErrors;
 import com.alibaba.cloud.ai.graph.internal.node.ParallelNode;
@@ -93,10 +94,17 @@ public class GraphRunnerContext<S extends GraphState> {
 	private void initializeFromResume(OverAllState initialState, RunnableConfig config) {
 		log.trace("RESUME REQUEST");
 
-		var saver = compiledGraph.compileConfig.checkpointSaver()
-				.orElseThrow(() -> new IllegalStateException("Resume request without a configured checkpoint saver!"));
-		var checkpoint = saver.get(config)
-				.orElseThrow(() -> new IllegalStateException("Resume request without a valid checkpoint!"));
+		Optional<BaseCheckpointSaver> saverOpt = compiledGraph.compileConfig.checkpointSaver();
+		if (saverOpt.isEmpty()) {
+			throw new IllegalStateException("Resume request without a configured checkpoint saver!");
+		}
+		var saver = saverOpt.get();
+		
+		Optional<Checkpoint> checkpointOpt = saver.get(config);
+		if (checkpointOpt.isEmpty()) {
+			throw new IllegalStateException("Resume request without a valid checkpoint!");
+		}
+		var checkpoint = checkpointOpt.get();
 
 		var startCheckpointNextNodeAction = compiledGraph.getNodeAction(checkpoint.getNextNodeId());
 		if (startCheckpointNextNodeAction instanceof ResumableSubGraphAction resumableAction) {
@@ -187,27 +195,27 @@ public class GraphRunnerContext<S extends GraphState> {
 	// Node Action Methods
 	// ================================================================================================================
 
-	public AsyncNodeActionWithConfig getNodeAction(String nodeId) {
+	public AsyncNodeActionWithConfig<S> getNodeAction(String nodeId) {
 		return compiledGraph.getNodeAction(nodeId);
 	}
 
-	public Command getEntryPoint() throws Exception {
+	public Command<S> getEntryPoint() throws Exception {
 		var entryPoint = compiledGraph.getEdge(START);
 		return nextNodeId(entryPoint, overallState.data(), "entryPoint");
 	}
 
-	public Command nextNodeId(String nodeId, Map<String, Object> state) throws Exception {
+	public Command<S> nextNodeId(String nodeId, Map<String, Object> state) throws Exception {
 		return nextNodeId(compiledGraph.getEdge(nodeId), state, nodeId);
 	}
 
-	private Command nextNodeId(EdgeValue route, Map<String, Object> state,
+	private Command<S> nextNodeId(EdgeValue route, Map<String, Object> state,
 			String nodeId) throws Exception {
 		if (route == null) {
 			throw RunnableErrors.missingEdge.exception(nodeId);
 		}
 		if (route.id() != null) {
 			// Pure routing – the update field is not used by callers, only gotoNode()
-			return new Command(route.id(), null);
+			return new Command<>(route.id(), null);
 		}
 		if (route.value() != null) {
 			var edgeCondition = route.value();
@@ -216,13 +224,12 @@ public class GraphRunnerContext<S extends GraphState> {
 			if (edgeCondition.isMultiCommand()) {
 				// Multi-command action - route to ConditionalParallelNode
 				String conditionalParallelNodeId = ParallelNode.formatNodeId(nodeId);
-				return new Command(conditionalParallelNodeId, null);
+				return new Command<>(conditionalParallelNodeId, null);
 			} else {
 				// Single Command action
 				var singleAction = edgeCondition.singleAction();
-				@SuppressWarnings("unchecked")
 				var cf = (java.util.concurrent.CompletableFuture<?>) singleAction.apply(this.overallState, config);
-				var command = (Command<?>) cf.get();
+				var command = (Command<S>) cf.get();
 
 				// Single Command case
 				var newRoute = command.gotoNode();
@@ -232,7 +239,7 @@ public class GraphRunnerContext<S extends GraphState> {
 				}
 				// Merge the command's state update (if any) into the current state
 				mergeCommandUpdate(command);
-				return new Command(result, null);
+				return new Command<>(result, null);
 			}
 		}
 		throw RunnableErrors.executionError.exception(format("invalid edge value for nodeId: [%s] !", nodeId));
@@ -242,11 +249,10 @@ public class GraphRunnerContext<S extends GraphState> {
 	 * Merges a {@link Command}'s {@code update} field into the current state when the
 	 * update is an {@link com.alibaba.cloud.ai.graph.OverAllState} instance.
 	 */
-	@SuppressWarnings("unchecked")
 	private void mergeCommandUpdate(Command<?> command) {
 		if (command.update() instanceof OverAllState os) {
 			Map<String, Object> data = os.data();
-			if (data != null && !data.isEmpty()) {
+			if (!data.isEmpty()) {
 				mergeIntoCurrentState(data);
 			}
 		}
@@ -258,7 +264,7 @@ public class GraphRunnerContext<S extends GraphState> {
 
 	public Optional<Checkpoint> addCheckpoint(String nodeId, String nextNodeId) throws Exception {
 		if (compiledGraph.compileConfig.checkpointSaver().isPresent()) {
-			var cp = Checkpoint.builder().nodeId(nodeId).state(cloneState(overallState.data())).nextNodeId(nextNodeId)
+			var cp = Checkpoint.builder().nodeId(nodeId).state(compiledGraph.cloneStateData(overallState.data())).nextNodeId(nextNodeId)
 					.build();
 			// Force checkPointId to null to ensure we append a new checkpoint instead of
 			// replacing the current one
@@ -273,7 +279,7 @@ public class GraphRunnerContext<S extends GraphState> {
 	// Output Building Methods
 	// ================================================================================================================
 
-	public NodeOutput<OverAllState> buildOutput(String nodeId, Optional<Checkpoint> checkpoint) throws Exception {
+	public NodeOutput<S> buildOutput(String nodeId, Optional<Checkpoint> checkpoint) throws Exception {
 		if (checkpoint.isPresent() && config.streamMode() == CompiledGraph.StreamMode.SNAPSHOTS) {
 			return StateSnapshot.of(getKeyStrategyMap(), checkpoint.get(), config,
 					compiledGraph.stateGraph.getStateSerializer().stateFactory());
@@ -301,15 +307,16 @@ public class GraphRunnerContext<S extends GraphState> {
 
 	// Normal NodeOutput builders for nodes with normal message output.
 
-	public NodeOutput<OverAllState> buildNodeOutput(String nodeId) throws Exception {
+	@SuppressWarnings("unchecked")
+	public NodeOutput<S> buildNodeOutput(String nodeId) throws Exception {
 		return NodeOutput.of(
 				nodeId,
 				(String) config.metadata("_AGENT_").orElse(""),
-				cloneState(this.overallState.data()),
+				(S) cloneState(this.overallState.data()),
 				this.tokenUsage);
 	}
 
-	public OverAllState cloneState(Map<String, Object> data) throws Exception {
+	public S cloneState(Map<String, Object> data) throws Exception {
 		return compiledGraph.cloneState(data);
 	}
 
@@ -317,24 +324,26 @@ public class GraphRunnerContext<S extends GraphState> {
 	// Lifecycle Methods
 	// ================================================================================================================
 
+	@SuppressWarnings({"unchecked", "rawtypes"})
 	public void doListeners(String scene, Exception e) {
-		for (GraphLifecycleListener listener : compiledGraph.compileConfig.lifecycleListeners()) {
+		for (Object listenerObj : compiledGraph.compileConfig.lifecycleListeners()) {
+			GraphLifecycleListener listener = (GraphLifecycleListener) listenerObj;
 			try {
 				switch (scene) {
 					case START:
-						listener.onStart(getCurrentNodeId(), getCurrentStateData(), config);
+						listener.onStart(getCurrentNodeId(), getOverallState(), config);
 						break;
 					case END:
-						listener.onComplete(END, getCurrentStateData(), config);
+						listener.onComplete(END, getOverallState(), config);
 						break;
 					case NODE_BEFORE:
-						listener.before(getCurrentNodeId(), getCurrentStateData(), config, SystemClock.now());
+						listener.before(getCurrentNodeId(), getOverallState(), config, SystemClock.now());
 						break;
 					case NODE_AFTER:
-						listener.after(getCurrentNodeId(), getCurrentStateData(), config, SystemClock.now());
+						listener.after(getCurrentNodeId(), getOverallState(), config, SystemClock.now());
 						break;
 					case ERROR:
-						listener.onError(getCurrentNodeId(), getCurrentStateData(), e, config);
+						listener.onError(getCurrentNodeId(), getOverallState(), e, config);
 						break;
 				}
 			} catch (Exception ex) {
@@ -457,12 +466,12 @@ public class GraphRunnerContext<S extends GraphState> {
 	 * Below are duplicated methods. Need to have a unified way of streaming output
 	 * to end user.
 	 */
-	public NodeOutput<OverAllState> buildNodeOutputAndAddCheckpoint(Map<String, Object> updateStates) throws Exception {
+	public NodeOutput<S> buildNodeOutputAndAddCheckpoint(Map<String, Object> updateStates) throws Exception {
 		Optional<Checkpoint> cp = addCheckpoint(currentNodeId, nextNodeId);
 		return buildOutput(currentNodeId, updateStates, cp, false);
 	}
 
-	public NodeOutput<OverAllState> buildOutput(String nodeId, Map<String, Object> updateStates, Optional<Checkpoint> checkpoint, boolean streaming)
+	public NodeOutput<S> buildOutput(String nodeId, Map<String, Object> updateStates, Optional<Checkpoint> checkpoint, boolean streaming)
 			throws Exception {
 		if (checkpoint.isPresent() && config.streamMode() == CompiledGraph.StreamMode.SNAPSHOTS) {
 			return StateSnapshot.of(getKeyStrategyMap(), checkpoint.get(), config,
@@ -471,7 +480,8 @@ public class GraphRunnerContext<S extends GraphState> {
 		return buildNodeOutput(nodeId, updateStates, streaming);
 	}
 
-	public NodeOutput<OverAllState> buildNodeOutput(String nodeId, Map<String, Object> updateStates, boolean streaming) throws Exception {
+	@SuppressWarnings("unchecked")
+	public NodeOutput<S> buildNodeOutput(String nodeId, Map<String, Object> updateStates, boolean streaming) throws Exception {
 		Message message = null;
 
 		// Check if updateStates is not empty
@@ -495,10 +505,10 @@ public class GraphRunnerContext<S extends GraphState> {
 
 		if (message != null) {
 			return new StreamingOutput<>(message, nodeId, (String) config.metadata("_AGENT_").orElse(""),
-					cloneState(this.overallState.data()), tokenUsage, outputType);
+					(S) cloneState(this.overallState.data()), tokenUsage, outputType);
 		} else {
 			return new StreamingOutput<>(nodeId, (String) config.metadata("_AGENT_").orElse(""),
-					cloneState(this.overallState.data()), tokenUsage, outputType);
+					(S) cloneState(this.overallState.data()), tokenUsage, outputType);
 		}
 	}
 

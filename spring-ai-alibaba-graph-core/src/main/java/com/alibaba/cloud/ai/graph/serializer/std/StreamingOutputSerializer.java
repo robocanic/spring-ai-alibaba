@@ -92,7 +92,7 @@ public class StreamingOutputSerializer implements NullableObjectSerializer<Strea
 
 		// Create StreamingOutput with all available fields
 		// Prefer constructor with message if message is present
-		StreamingOutput<?> output;
+		StreamingOutput<?, ?> output;
 		if (message != null) {
 			output = new StreamingOutput<>(message, node, agent, state, outputType);
 		} else {

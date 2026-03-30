@@ -20,6 +20,7 @@ import com.alibaba.cloud.ai.graph.GraphState;
 import com.alibaba.cloud.ai.graph.KeyStrategy;
 import com.alibaba.cloud.ai.graph.NodeAggregationStrategy;
 import com.alibaba.cloud.ai.graph.OverAllState;
+import com.alibaba.cloud.ai.graph.OverAllStateBuilder;
 import com.alibaba.cloud.ai.graph.RunnableConfig;
 import com.alibaba.cloud.ai.graph.action.AsyncNodeActionWithConfig;
 import com.alibaba.cloud.ai.graph.action.NodeActionResult;
@@ -55,7 +56,7 @@ import static java.lang.String.format;
 import static java.util.Objects.requireNonNull;
 
 
-public class ParallelNode<S extends GraphState> extends Node<S> {
+public class ParallelNode extends Node {
 	
 	private static final Logger logger = LoggerFactory.getLogger(ParallelNode.class);
 
@@ -517,11 +518,11 @@ public class ParallelNode<S extends GraphState> extends Node<S> {
 		 * regular objects.
 		 * Priority: GraphFlux > traditional Flux > regular objects
 		 */
+		@SuppressWarnings({"unchecked", "rawtypes"})
 		private S processParallelResults(List<NodeActionResult<S>> results, S state, List<AsyncNodeActionWithConfig<S>> actionList) {
 
 			// Check if any result contains GraphFlux or traditional Flux
 			List<GraphFlux<?>> graphFluxList = new ArrayList<>();
-			List<String> graphFluxNodeIds = new ArrayList<>();
 
 			// Collect non-streaming state
 			Map<String, Object> mergedState = new HashMap<>();
@@ -536,32 +537,15 @@ public class ParallelNode<S extends GraphState> extends Node<S> {
 					// Traditional Flux - wrap it in GraphFlux for unified processing
 					GraphFlux<?> graphFlux = GraphFlux.of(effectiveNodeId, StateFieldScanner.getStreamingFieldKey(state.getClass()), streamingFlux, null, null);
 					graphFluxList.add(graphFlux);
+				}
 
-					if (value instanceof GraphFlux) {
-						GraphFlux<?> graphFlux = (GraphFlux<?>) value;
-						// Use GraphFlux's own nodeId, or generate one if not set properly
-						String graphFluxNodeId = graphFlux.getNodeId() != null ? graphFlux.getNodeId()
-								: effectiveNodeId;
-
-						// Create new GraphFlux with correct nodeId if needed
-						if (!graphFluxNodeId.equals(graphFlux.getNodeId())) {
-							@SuppressWarnings("unchecked")
-							GraphFlux<Object> castedFlux = (GraphFlux<Object>) graphFlux;
-							@SuppressWarnings("unchecked")
-							GraphFlux<Object> newGraphFlux = GraphFlux.of(graphFluxNodeId, entry.getKey(),
-									castedFlux.getFlux(), castedFlux.getMapResult(), castedFlux.getChunkResult());
-							graphFlux = newGraphFlux;
-						}
-
-						graphFluxList.add(graphFlux);
-						graphFluxNodeIds.add(graphFluxNodeId);
-					} else if (value instanceof Flux flux) {
-
-					} else {
-						// Regular object - add to merged state
-						Map<String, Object> singleEntryMap = Map.of(entry.getKey(), value);
-						mergedState = OverAllState.updateState(mergedState, singleEntryMap, channels);
-					}
+				if (result.hasLegacyDelta()) {
+					// Legacy path: merge partial delta map
+					mergedState = OverAllState.updateState(mergedState, result.legacyDelta(), channels);
+				} else if (result.state() != null) {
+					// POJO path: convert state to map and merge
+					Map<String, Object> stateMap = StateFieldScanner.toMap(result.state());
+					mergedState = OverAllState.updateState(mergedState, stateMap, channels);
 				}
 			}
 
@@ -570,16 +554,27 @@ public class ParallelNode<S extends GraphState> extends Node<S> {
 				// We have GraphFlux instances - create ParallelGraphFlux with node identity
 				// preservation
 				ParallelGraphFlux parallelGraphFlux = ParallelGraphFlux.of(graphFluxList);
-
 				mergedState.put("__parallel_graph_flux__", parallelGraphFlux);
-				return mergedState;
-			} else {
-				Map<String, Object> initialState = new HashMap<>();
-				// No streaming output, directly merge all results
-				return results.stream()
-						.reduce(initialState,
-								(result, actionResult) -> OverAllState.updateState(result, actionResult, channels));
 			}
+
+			// Apply the merged state to the original state
+			if (state instanceof OverAllState oas) {
+				OverAllState updatedState = OverAllStateBuilder.builder()
+						.withData(OverAllState.updateState(oas.data(), mergedState, channels))
+						.withKeyStrategies(oas.keyStrategies())
+						.withStore(oas.getStore())
+						.build();
+				return (S) updatedState;
+			}
+
+			// For POJO states, merge and return
+			if (!mergedState.isEmpty()) {
+				// Update the state with merged results
+				if (state instanceof OverAllState) {
+					((OverAllState) state).updateState(mergedState);
+				}
+			}
+			return state;
 		}
 
 		/**
@@ -612,10 +607,11 @@ public class ParallelNode<S extends GraphState> extends Node<S> {
 	 * @param compileConfig the compilation configuration containing lifecycle listeners and other
 	 *                      compile-time settings that affect how the parallel node is executed.
 	 */
-	public ParallelNode(String id, String targetNodeId, List<AsyncNodeActionWithConfig<S>> actions, List<String> actionNodeIds,
+	public <S extends GraphState> ParallelNode(String id, String targetNodeId, List<AsyncNodeActionWithConfig<S>> actions, List<String> actionNodeIds,
 											   Map<String, KeyStrategy> channels, CompileConfig<S> compileConfig) {
-		super(formatNodeId(id), (config) ->
-				new AsyncParallelNodeAction<>(formatNodeId(id), targetNodeId, actions, actionNodeIds, channels, compileConfig));
+		super(formatNodeId(id),
+				(ActionFactory<S>) (config) -> new AsyncParallelNodeAction<>(formatNodeId(id), targetNodeId, actions, actionNodeIds, channels,
+						compileConfig));
 	}
 
 	@Override

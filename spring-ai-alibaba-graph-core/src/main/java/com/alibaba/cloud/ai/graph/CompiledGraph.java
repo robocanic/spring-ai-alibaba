@@ -43,6 +43,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import com.alibaba.cloud.ai.graph.utils.StateFieldScanner;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Flux;
@@ -135,8 +136,8 @@ public class CompiledGraph<S extends GraphState> {
 
 		// STORE NODE FACTORIES - for thread safety, we store factories instead of
 		// instances
-		for (var n : processedData.nodes().elements) {
-			Node.ActionFactory<S> factory = n.actionFactory();
+		for (Node<S> n : processedData.nodes().elements) {
+			var factory = n.actionFactory();
 			Objects.requireNonNull(factory, format("action factory for node id '%s' is null!", n.id()));
 			nodeFactories.put(n.id(), factory);
 		}
@@ -152,7 +153,7 @@ public class CompiledGraph<S extends GraphState> {
 					// Check if this is a multi-command action (returns multiple nodes)
 					if (edgeCondition.isMultiCommand()) {
 						// Multi-command action - create ConditionalParallelNode for parallel execution
-						var conditionalParallelNode = new ConditionalParallelNode<>(
+						var conditionalParallelNode = new ConditionalParallelNode(
 								e.sourceId(),
 								edgeCondition,
 								nodeFactories,
@@ -237,7 +238,7 @@ public class CompiledGraph<S extends GraphState> {
 				var actionNodeIds = targetList.stream().map(EdgeValue::id).toList();
 
 				var targetNodeId = parallelNodeTargets.iterator().next();
-				var parallelNode = new ParallelNode<>(e.sourceId(), targetNodeId, actions, actionNodeIds, keyStrategyMap,
+				var parallelNode = new ParallelNode(e.sourceId(), targetNodeId, actions, actionNodeIds, keyStrategyMap,
 						compileConfig);
 
 				nodeFactories.put(parallelNode.id(), parallelNode.actionFactory());
@@ -250,13 +251,13 @@ public class CompiledGraph<S extends GraphState> {
 		}
 	}
 
-	public Collection<StateSnapshot<S>> getStateHistory(RunnableConfig config) {
+	public Collection<StateSnapshot> getStateHistory(RunnableConfig config) {
 		BaseCheckpointSaver saver = compileConfig.checkpointSaver()
 				.orElseThrow(() -> (new IllegalStateException("Missing CheckpointSaver!")));
 
 		return saver.list(config)
 				.stream()
-				.map(checkpoint -> StateSnapshot.of(checkpoint, config, stateGraph.getStateFactory()))
+				.map(checkpoint -> StateSnapshot.of(keyStrategyMap, checkpoint, config, stateGraph.getStateFactory()))
 				.collect(toList());
 	}
 
@@ -378,7 +379,7 @@ public class CompiledGraph<S extends GraphState> {
 			return new Command<>(route.id(), null);
 		}
 		if (route.value() != null) {
-			OverAllState derefState = stateGraph.getStateFactory().apply(state);
+			S derefState = stateGraph.getStateFactory().apply(state);
 			var edgeCondition = route.value();
 
 			// Check if this is a multi-command action
@@ -405,8 +406,10 @@ public class CompiledGraph<S extends GraphState> {
 				if (cmdUpdate instanceof OverAllState os) {
 					updatedMap = OverAllState.updateState(state, os.data(), keyStrategyMap);
 				}
-				OverAllState updatedState = stateGraph.getStateFactory().apply(updatedMap);
-				return new Command<>(result, updatedState);
+				S updatedState = stateGraph.getStateFactory().apply(updatedMap);
+				@SuppressWarnings("unchecked")
+				Command<S> resultCommand = (Command<S>) new Command<>(result, updatedState);
+				return resultCommand;
 			}
 		}
 		throw RunnableErrors.executionError.exception(format("invalid edge value for nodeId: [%s] !", nodeId));
@@ -477,6 +480,18 @@ public class CompiledGraph<S extends GraphState> {
 	}
 
 	/**
+	 * Clone state data map (deep copy via serialization).
+	 * 
+	 * @param data the data
+	 * @return the cloned data map
+	 */
+	Map<String, Object> cloneStateData(Map<String, Object> data)
+			throws IOException, ClassNotFoundException {
+		return stateGraph.getStateSerializer()
+				.dataFromBytes(stateGraph.getStateSerializer().dataToBytes(data));
+	}
+
+	/**
 	 * Clone state over all state.
 	 * 
 	 * @param data the data
@@ -484,28 +499,33 @@ public class CompiledGraph<S extends GraphState> {
 	 */
 	OverAllState cloneState(Map<String, Object> data, OverAllState overAllState)
 			throws IOException, ClassNotFoundException {
-		Map<String, Object> cloned = stateGraph.getStateSerializer()
-				.dataFromBytes(stateGraph.getStateSerializer().dataToBytes(data));
-		return new OverAllState(cloned, overAllState.keyStrategies(), overAllState.getStore());
+		Map<String, Object> cloned = cloneStateData(data);
+		return OverAllStateBuilder.builder()
+				.withData(cloned)
+				.withKeyStrategies(overAllState.keyStrategies())
+				.withStore(overAllState.getStore())
+				.build();
 	}
 
 	/**
-	 * Clone state over all state.
+	 * Clone state as generic S.
 	 * 
 	 * @param data the data
-	 * @return the over all state
+	 * @return the cloned state
 	 */
-	public OverAllState cloneState(Map<String, Object> data) throws IOException, ClassNotFoundException {
-		Map<String, Object> cloned = stateGraph.getStateSerializer()
-				.dataFromBytes(stateGraph.getStateSerializer().dataToBytes(data));
-		return new OverAllState(cloned, getKeyStrategyMap());
+	public S cloneState(Map<String, Object> data) throws IOException, ClassNotFoundException {
+		Map<String, Object> cloned = cloneStateData(data);
+		if (stateGraph.getGraphStateClass() != null) {
+			return StateFieldScanner.fromMap(cloned, stateGraph.getGraphStateClass());
+		}
+		return stateGraph.getStateSerializer().stateOf(cloned);
 	}
 
 	/**
 	 * Package-private access to nodes for ReactiveNodeGenerator.
 	 */
-	public AsyncNodeActionWithConfig getNodeAction(String nodeId) {
-		Node.ActionFactory factory = nodeFactories.get(nodeId);
+	public AsyncNodeActionWithConfig<S> getNodeAction(String nodeId) {
+		Node.ActionFactory<S> factory = nodeFactories.get(nodeId);
 		try {
 			return factory != null ? factory.apply(compileConfig) : null;
 		} catch (GraphStateException e) {
@@ -595,7 +615,9 @@ public class CompiledGraph<S extends GraphState> {
 		Objects.requireNonNull(config, "config cannot be null");
 		try {
 			GraphRunner runner = new GraphRunner(this, config);
-			return runner.run(overAllState).flatMap(data -> {
+			@SuppressWarnings({"unchecked", "rawtypes"})
+			Flux<GraphResponse<NodeOutput<?>>> responseFlux = (Flux) runner.run(overAllState);
+			return responseFlux.flatMap(data -> {
 				if (data.isDone()) {
 					if (data.resultValue().isPresent() && data.resultValue().get() instanceof NodeOutput) {
 						return Flux.just((NodeOutput) data.resultValue().get());

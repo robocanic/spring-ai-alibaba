@@ -17,6 +17,7 @@ package com.alibaba.cloud.ai.graph.executor;
 
 import com.alibaba.cloud.ai.graph.GraphRunnerContext;
 import com.alibaba.cloud.ai.graph.GraphResponse;
+import com.alibaba.cloud.ai.graph.GraphState;
 import com.alibaba.cloud.ai.graph.NodeOutput;
 import com.alibaba.cloud.ai.graph.action.Command;
 import com.alibaba.cloud.ai.graph.action.InterruptionMetadata;
@@ -38,7 +39,7 @@ import static com.alibaba.cloud.ai.graph.StateGraph.START;
  * inheritance by extending BaseGraphExecutor. It also demonstrates polymorphism through
  * its specific implementation of execute.
  */
-public class MainGraphExecutor extends BaseGraphExecutor {
+public class MainGraphExecutor<S extends GraphState> extends BaseGraphExecutor<S> {
 
 	private final NodeExecutor nodeExecutor;
 
@@ -54,7 +55,7 @@ public class MainGraphExecutor extends BaseGraphExecutor {
 	 * @return Flux of GraphResponse with execution result
 	 */
 	@Override
-	public Flux<GraphResponse<NodeOutput>> execute(GraphRunnerContext context, AtomicReference<Object> resultValue) {
+	public Flux<GraphResponse<NodeOutput<S>>> execute(GraphRunnerContext<S> context, AtomicReference<Object> resultValue) {
 		try {
 			if (context.shouldStop() || context.isMaxIterationsReached()) {
 				return handleCompletion(context, resultValue);
@@ -62,8 +63,7 @@ public class MainGraphExecutor extends BaseGraphExecutor {
 
 			final var returnFromEmbed = context.getReturnFromEmbedAndReset();
 			if (returnFromEmbed.isPresent()) {
-				var interruption = returnFromEmbed.get().value(new TypeRef<InterruptionMetadata>() {
-				});
+				var interruption = returnFromEmbed.get().value(new TypeRef<InterruptionMetadata<S>>() {});
 				if (interruption.isPresent()) {
 					return Flux.just(GraphResponse.done(interruption.get()));
 				}
@@ -80,7 +80,9 @@ public class MainGraphExecutor extends BaseGraphExecutor {
 			}
 
 			if (context.isEndNode()) {
-				return handleEndNode(context, resultValue);
+				@SuppressWarnings({"unchecked", "rawtypes"})
+				Flux<GraphResponse<NodeOutput<S>>> endFlux = (Flux) handleEndNode(context, resultValue);
+				return endFlux;
 			}
 
 			final var resumeFrom = context.getResumeFromAndReset();
@@ -105,7 +107,9 @@ public class MainGraphExecutor extends BaseGraphExecutor {
 				}
 			}
 
-			return nodeExecutor.execute(context, resultValue);
+			@SuppressWarnings({"unchecked", "rawtypes"})
+			Flux<GraphResponse<NodeOutput<S>>> nodeFlux = (Flux) nodeExecutor.execute(context, resultValue);
+			return nodeFlux;
 		}
 		catch (Exception e) {
 			context.doListeners(ERROR, e);
@@ -120,14 +124,14 @@ public class MainGraphExecutor extends BaseGraphExecutor {
 	 * @param context the graph runner context
 	 * @return Flux of GraphResponse with start node handling result
 	 */
-	private Flux<GraphResponse<NodeOutput>> handleStartNode(GraphRunnerContext context) {
+	private Flux<GraphResponse<NodeOutput<S>>> handleStartNode(GraphRunnerContext<S> context) {
 		try {
 			context.doListeners(START, null);
-			Command nextCommand = context.getEntryPoint();
+			Command<S> nextCommand = context.getEntryPoint();
 			context.setNextNodeId(nextCommand.gotoNode());
 
 			Optional<Checkpoint> cp = context.addCheckpoint(START, context.getNextNodeId());
-			NodeOutput output = context.buildOutput(START, cp);
+			NodeOutput<S> output = context.buildOutput(START, cp);
 
 			context.setCurrentNodeId(context.getNextNodeId());
 			// Recursively call the main execution handler
@@ -145,13 +149,15 @@ public class MainGraphExecutor extends BaseGraphExecutor {
 	 * @param resultValue the atomic reference to store the result value
 	 * @return Flux of GraphResponse with end node handling result
 	 */
-	private Flux<GraphResponse<NodeOutput>> handleEndNode(GraphRunnerContext context,
+	@SuppressWarnings({"unchecked", "rawtypes"})
+	private Flux<GraphResponse<NodeOutput<?>>> handleEndNode(GraphRunnerContext context,
 			AtomicReference<Object> resultValue) {
 		try {
 			context.doListeners(END, null);
-			NodeOutput output = context.buildNodeOutput(END);
-			return Flux.just(GraphResponse.of(output))
-				.concatWith(Flux.defer(() -> handleCompletion(context, resultValue)));
+			NodeOutput<?> output = context.buildNodeOutput(END);
+			Flux first = Flux.just(GraphResponse.of(output));
+			Flux second = Flux.defer(() -> handleCompletion(context, resultValue));
+			return Flux.concat(first, second);
 		}
 		catch (Exception e) {
 			return Flux.just(GraphResponse.error(e));

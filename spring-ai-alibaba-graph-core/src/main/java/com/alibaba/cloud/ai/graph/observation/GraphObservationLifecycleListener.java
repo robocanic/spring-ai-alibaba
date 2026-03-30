@@ -17,6 +17,7 @@
 package com.alibaba.cloud.ai.graph.observation;
 
 import com.alibaba.cloud.ai.graph.GraphLifecycleListener;
+import com.alibaba.cloud.ai.graph.OverAllState;
 import com.alibaba.cloud.ai.graph.RunnableConfig;
 import com.alibaba.cloud.ai.graph.observation.metric.SpringAiAlibabaObservationMetricAttributes;
 import io.micrometer.observation.Observation;
@@ -42,7 +43,7 @@ import java.util.concurrent.ConcurrentHashMap;
  *
  * @author sixiyida
  */
-public class GraphObservationLifecycleListener implements GraphLifecycleListener {
+public class GraphObservationLifecycleListener implements GraphLifecycleListener<OverAllState> {
 
 	private static final Logger log = LoggerFactory.getLogger(GraphObservationLifecycleListener.class);
 
@@ -88,39 +89,39 @@ public class GraphObservationLifecycleListener implements GraphLifecycleListener
 	}
 
 	@Override
-	public void onStart(String nodeId, Map<String, Object> state, RunnableConfig config) {
+	public void onStart(String nodeId, OverAllState state, RunnableConfig config) {
 		if (com.alibaba.cloud.ai.graph.StateGraph.START.equals(nodeId)) {
-			startGraphObservation(state);
+			startGraphObservation(state.data());
 		}
 	}
 
 	@Override
-	public void onComplete(String nodeId, Map<String, Object> state, RunnableConfig config) {
+	public void onComplete(String nodeId, OverAllState state, RunnableConfig config) {
 		if (com.alibaba.cloud.ai.graph.StateGraph.END.equals(nodeId)) {
-			stopGraphObservation(state, true, null);
+			stopGraphObservation(state.data(), true, null);
 		}
 	}
 
 	@Override
-	public void onError(String nodeId, Map<String, Object> state, Throwable ex, RunnableConfig config) {
+	public void onError(String nodeId, OverAllState state, Throwable ex, RunnableConfig config) {
 		log.error("Error in graph/node {}: {}", nodeId, ex.getMessage());
 		// Handle Node Error
-		handleError(nodeId, state, ex);
+		handleError(nodeId, state.data(), ex);
 		// Handle Graph Error (Stop Graph Obs if needed, or if bubbling)
 		// Usually onError is called for the node that failed.
 		// If we want to fail the GRAPH too, we should do it.
 		// But GraphRunner continues? No, GraphRunner returns Flux.error usually.
-		stopGraphObservation(state, false, ex);
+		stopGraphObservation(state.data(), false, ex);
 	}
 
 	@Override
-	public void before(String nodeId, Map<String, Object> state, RunnableConfig config, Long curTime) {
-		startNodeObservation(nodeId, state);
+	public void before(String nodeId, OverAllState state, RunnableConfig config, Long curTime) {
+		startNodeObservation(nodeId, state.data());
 	}
 
 	@Override
-	public void after(String nodeId, Map<String, Object> state, RunnableConfig config, Long curTime) {
-		stopNodeObservation(nodeId, state);
+	public void after(String nodeId, OverAllState state, RunnableConfig config, Long curTime) {
+		stopNodeObservation(nodeId, state.data());
 	}
 
 	private void startGraphObservation(Map<String, Object> state) {

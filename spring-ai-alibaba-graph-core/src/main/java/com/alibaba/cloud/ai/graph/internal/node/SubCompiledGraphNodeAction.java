@@ -21,6 +21,7 @@ import com.alibaba.cloud.ai.graph.CompiledGraph;
 import com.alibaba.cloud.ai.graph.OverAllState;
 import com.alibaba.cloud.ai.graph.RunnableConfig;
 import com.alibaba.cloud.ai.graph.action.AsyncNodeActionWithConfig;
+import com.alibaba.cloud.ai.graph.action.NodeActionResult;
 import com.alibaba.cloud.ai.graph.utils.TypeRef;
 
 import java.util.Map;
@@ -47,8 +48,9 @@ import static java.lang.String.format;
  * @see CompiledGraph
  * @see AsyncNodeActionWithConfig
  */
+@SuppressWarnings({"unchecked", "rawtypes"})
 public record SubCompiledGraphNodeAction(String nodeId, CompileConfig parentCompileConfig,
-		CompiledGraph subGraph) implements AsyncNodeActionWithConfig, ResumableSubGraphAction {
+		CompiledGraph subGraph) implements AsyncNodeActionWithConfig<OverAllState>, ResumableSubGraphAction {
 
 	public String getResumeSubGraphId() {
 		return resumeSubGraphId(nodeId);
@@ -60,11 +62,11 @@ public record SubCompiledGraphNodeAction(String nodeId, CompileConfig parentComp
 	 * intermediate results.
 	 * @param config The configuration for the graph execution.
 	 * @return A {@link CompletableFuture} that will complete with a result of type
-	 * {@code Map<String, Object>}. If an exception occurs during execution, the future
+	 * {@code NodeActionResult<OverAllState>}. If an exception occurs during execution, the future
 	 * will be completed exceptionally.
 	 */
 	@Override
-	public CompletableFuture<Map<String, Object>> apply(OverAllState state, RunnableConfig config) {
+	public CompletableFuture<NodeActionResult<OverAllState>> apply(OverAllState state, RunnableConfig config) {
 		final boolean resumeSubgraph = config.metadata(resumeSubGraphId(nodeId), new TypeRef<Boolean>() {
 		}).orElse(false);
 
@@ -93,7 +95,7 @@ public record SubCompiledGraphNodeAction(String nodeId, CompileConfig parentComp
 			}
 		}
 
-		final CompletableFuture<Map<String, Object>> future = new CompletableFuture<>();
+		final CompletableFuture<NodeActionResult<OverAllState>> future = new CompletableFuture<>();
 
 		try {
 			if (resumeSubgraph) {
@@ -102,7 +104,7 @@ public record SubCompiledGraphNodeAction(String nodeId, CompileConfig parentComp
 
 			var fluxStream = subGraph.graphResponseStream(state, subGraphRunnableConfig);
 
-			future.complete(Map.of(outputKeyToParent(nodeId), fluxStream));
+			future.complete(NodeActionResult.ofLegacy(state, Map.of(outputKeyToParent(nodeId), fluxStream)));
 
 		}
 		catch (Exception e) {

@@ -18,6 +18,8 @@ package com.alibaba.cloud.ai.graph.action;
 import com.alibaba.cloud.ai.graph.GraphState;
 import reactor.core.publisher.Flux;
 
+import java.util.Map;
+
 
 /**
  * Unified return type for all {@link NodeAction} implementations.
@@ -43,8 +45,8 @@ import reactor.core.publisher.Flux;
  * }</pre>
  *
  * @param <S> the concrete graph state type
- * @author spring-ai-alibaba
- * @since 1.0
+ * @author robocanic
+ * @since 2.0
  */
 public final class NodeActionResult<S extends GraphState> {
 
@@ -52,10 +54,12 @@ public final class NodeActionResult<S extends GraphState> {
 
 	private final Flux<?> streamingFlux;
 
+	private final Map<String, Object> legacyDelta;
 
-	private NodeActionResult(S state, Flux<?> streamingFlux) {
+	private NodeActionResult(S state, Flux<?> streamingFlux, Map<String, Object> legacyDelta) {
 		this.state = state;
 		this.streamingFlux = streamingFlux;
+		this.legacyDelta = legacyDelta;
 	}
 
 	/**
@@ -65,7 +69,7 @@ public final class NodeActionResult<S extends GraphState> {
 	 * @return an empty result
 	 */
 	public static <S extends GraphState> NodeActionResult<S> empty() {
-		return new NodeActionResult<>(null, null);
+		return new NodeActionResult<>(null, null, null);
 	}
 
 	/**
@@ -75,10 +79,7 @@ public final class NodeActionResult<S extends GraphState> {
 	 * @return a non-streaming result
 	 */
 	public static <S extends GraphState> NodeActionResult<S> of(S state) {
-		if (state == null) {
-			throw new IllegalArgumentException("state must not be null");
-		}
-		return new NodeActionResult<>(state, null);
+		return new NodeActionResult<>(state, null, null);
 	}
 
 	/**
@@ -97,13 +98,23 @@ public final class NodeActionResult<S extends GraphState> {
 	 * @return a streaming result
 	 */
 	public static <S extends GraphState, T> NodeActionResult<S> ofStreaming(S state, Flux<T> streamingFlux) {
-		if (state == null) {
-			throw new IllegalArgumentException("state must not be null");
-		}
 		if (streamingFlux == null) {
 			throw new IllegalArgumentException("streamingFlux must not be null");
 		}
-		return new NodeActionResult<>(state, streamingFlux);
+		return new NodeActionResult<>(state, streamingFlux, null);
+	}
+
+	/**
+	 * TODO remove
+	 * Creates a legacy {@code NodeActionResult} that carries a state and a partial delta map.
+	 * This is used for backward compatibility with {@code OverallStateNodeAction}.
+	 * @param <S> the concrete graph state type
+	 * @param state the current state
+	 * @param legacyDelta the partial state update map
+	 * @return a legacy result
+	 */
+	public static <S extends GraphState> NodeActionResult<S> ofLegacy(S state, Map<String, Object> legacyDelta) {
+		return new NodeActionResult<>(state, null, legacyDelta);
 	}
 
 	/**
@@ -128,6 +139,22 @@ public final class NodeActionResult<S extends GraphState> {
 	 */
 	public Flux<?> streamingFlux() {
 		return streamingFlux;
+	}
+
+	/**
+	 * Returns {@code true} if this result carries a legacy delta map.
+	 * @return {@code true} for legacy results
+	 */
+	public boolean hasLegacyDelta() {
+		return legacyDelta != null;
+	}
+
+	/**
+	 * Returns the legacy delta map, or {@code null} for non-legacy results.
+	 * @return the delta map, or {@code null}
+	 */
+	public Map<String, Object> legacyDelta() {
+		return legacyDelta;
 	}
 
 }

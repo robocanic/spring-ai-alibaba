@@ -195,7 +195,8 @@ public class ParallelEdgeProcessor {
 		if (needsSubgraph) {
 			// Create a subgraph for EACH path, then assemble them into a ParallelNode
 			// This allows each path (including nested parallel edges) to be processed independently
-			List<AsyncNodeActionWithConfig> subGraphActions = new ArrayList<>();
+			@SuppressWarnings({"unchecked", "rawtypes"})
+			List<AsyncNodeActionWithConfig<?>> subGraphActions = new ArrayList<>();
 			List<String> subGraphNodeIds = new ArrayList<>();
 
 			for (ParallelPath path : paths) {
@@ -203,6 +204,7 @@ public class ParallelEdgeProcessor {
 				StateGraph subStateGraph = createSubgraphForPath(path);
 
 				// Compile the subgraph into CompiledGraph
+				@SuppressWarnings("rawtypes")
 				CompiledGraph subCompiledGraph = subStateGraph.compile(compileConfig);
 
 				// Create SubCompiledGraphNode for this path
@@ -220,8 +222,9 @@ public class ParallelEdgeProcessor {
 			}
 
 			// Create a ParallelNode that executes all subgraphs in parallel
-			var parallelNode = new ParallelNode(sourceNodeId, convergenceNodeId, subGraphActions, subGraphNodeIds,
-					keyStrategyMap, compileConfig);
+			@SuppressWarnings({"unchecked", "rawtypes"})
+			var parallelNode = new ParallelNode(sourceNodeId, convergenceNodeId, (List) subGraphActions, subGraphNodeIds,
+					keyStrategyMap, (CompileConfig) compileConfig);
 
 			nodeFactoriesUpdater.accept(parallelNode.id(), parallelNode.actionFactory());
 			edgesUpdater.accept(sourceNodeId, new EdgeValue(parallelNode.id()));
@@ -243,8 +246,9 @@ public class ParallelEdgeProcessor {
 
 			var actionNodeIds = targetList.stream().map(EdgeValue::id).toList();
 
-			var parallelNode = new ParallelNode(sourceNodeId, convergenceNodeId, actions, actionNodeIds,
-					keyStrategyMap, compileConfig);
+			@SuppressWarnings({"unchecked", "rawtypes"})
+			var parallelNode = new ParallelNode(sourceNodeId, convergenceNodeId, (List) actions, actionNodeIds,
+					keyStrategyMap, (CompileConfig) compileConfig);
 
 			nodeFactoriesUpdater.accept(parallelNode.id(), parallelNode.actionFactory());
 			edgesUpdater.accept(sourceNodeId, new EdgeValue(parallelNode.id()));
@@ -499,12 +503,14 @@ public class ParallelEdgeProcessor {
 		// Add all nodes to subgraph by copying from original nodes
 		for (String nodeId : allNodes) {
 			if (nodeFactories.containsKey(nodeId)) {
-				Node originalNode = processedData.nodes().elements.stream()
-						.filter(n -> Objects.equals(n.id(), nodeId))
+				@SuppressWarnings("rawtypes")
+				Node originalNode = (Node) processedData.nodes().elements.stream()
+						.filter(n -> Objects.equals(((Node) n).id(), nodeId))
 						.findFirst()
 						.orElse(null);
 				if (originalNode != null) {
 					// Create a new node with the same ID and action factory
+					@SuppressWarnings({"unchecked", "rawtypes"})
 					Node newNode = new Node(originalNode.id(), originalNode.actionFactory());
 					subGraph.addNode(nodeId, newNode);
 				}

@@ -16,10 +16,13 @@
 package com.alibaba.cloud.ai.graph.state;
 
 import com.alibaba.cloud.ai.graph.GraphState;
+import com.alibaba.cloud.ai.graph.KeyStrategy;
 import com.alibaba.cloud.ai.graph.NodeOutput;
+import com.alibaba.cloud.ai.graph.OverAllState;
 import com.alibaba.cloud.ai.graph.RunnableConfig;
 import com.alibaba.cloud.ai.graph.checkpoint.Checkpoint;
 
+import java.util.Map;
 
 import static java.lang.String.format;
 
@@ -46,14 +49,32 @@ public final class StateSnapshot<S extends GraphState> extends NodeOutput<S> {
 		return format("StateSnapshot{node=%s, state=%s, config=%s}", node(), state(), config());
 	}
 
-	public static <S extends GraphState> StateSnapshot<S> of(Checkpoint checkpoint,
-			RunnableConfig config, AgentStateFactory<S> factory) {
+	public static <T extends GraphState> StateSnapshot<T> of(Map<String, KeyStrategy> keyStrategyMap,
+			Checkpoint checkpoint, RunnableConfig config, AgentStateFactory<T> factory) {
 
 		RunnableConfig newConfig = RunnableConfig.builder(config)
 			.checkPointId(checkpoint.getId())
 			.nextNode(checkpoint.getNextNodeId())
 			.build();
-		return new StateSnapshot<>(checkpoint.getNodeId(), factory.apply(checkpoint.getState()), newConfig);
+		T state = factory.apply(checkpoint.getState());
+		if (state instanceof OverAllState oas) {
+			oas.registerKeyAndStrategy(keyStrategyMap);
+		}
+		return new StateSnapshot<>(checkpoint.getNodeId(), state, newConfig);
+	}
+
+	public static <T extends GraphState> StateSnapshot<T> of(OverAllState overAllState, Checkpoint checkpoint,
+			RunnableConfig config, AgentStateFactory<T> factory) {
+
+		RunnableConfig newConfig = RunnableConfig.builder(config)
+			.checkPointId(checkpoint.getId())
+			.nextNode(checkpoint.getNextNodeId())
+			.build();
+		T state = factory.apply(checkpoint.getState());
+		if (state instanceof OverAllState oas) {
+			oas.registerKeyAndStrategy(overAllState.keyStrategies());
+		}
+		return new StateSnapshot<>(checkpoint.getNodeId(), state, newConfig);
 	}
 
 }

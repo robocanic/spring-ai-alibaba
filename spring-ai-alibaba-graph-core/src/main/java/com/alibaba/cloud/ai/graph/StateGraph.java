@@ -99,7 +99,7 @@ public class StateGraph<S extends GraphState> {
 	/**
 	 * Serializer for the state.
 	 */
-	private final StateSerializer stateSerializer;
+	private final StateSerializer<S> stateSerializer;
 
 	/**
 	 * Class of the graph state.
@@ -109,7 +109,7 @@ public class StateGraph<S extends GraphState> {
 	/**
 	 * Default Jackson serializer instance.
 	 */
-	public static final StateSerializer DEFAULT_JACKSON_SERIALIZER = new SpringAIJacksonStateSerializer(OverAllState::new, new ObjectMapper());
+	public static final StateSerializer<OverAllState> DEFAULT_JACKSON_SERIALIZER = new SpringAIJacksonStateSerializer(OverAllState::new, new ObjectMapper());
 
 	/**
 	 * Constructs a StateGraph with the specified name, key strategy factory, and SpringAI
@@ -120,8 +120,9 @@ public class StateGraph<S extends GraphState> {
 	 * @deprecated Use {@link #StateGraph(String, KeyStrategyFactory, StateSerializer)} instead
 	 */
 	@Deprecated
+	@SuppressWarnings("unchecked")
 	public StateGraph(String name, KeyStrategyFactory keyStrategyFactory, SpringAIStateSerializer stateSerializer) {
-		this(name, keyStrategyFactory, (StateSerializer) stateSerializer);
+		this(name, keyStrategyFactory, (StateSerializer<S>) (StateSerializer<?>) stateSerializer);
 	}
 
 	/**
@@ -132,27 +133,31 @@ public class StateGraph<S extends GraphState> {
 	 * @deprecated Use {@link #StateGraph(KeyStrategyFactory, StateSerializer)} instead
 	 */
 	@Deprecated
+	@SuppressWarnings("unchecked")
 	public StateGraph(KeyStrategyFactory keyStrategyFactory, SpringAIStateSerializer stateSerializer) {
-		this(keyStrategyFactory, (StateSerializer) stateSerializer);
+		this(keyStrategyFactory, (StateSerializer<S>) (StateSerializer<?>) stateSerializer);
 	}
 
+	@SuppressWarnings("unchecked")
 	public StateGraph(String name, KeyStrategyFactory keyStrategyFactory) {
-		this(name, keyStrategyFactory, DEFAULT_JACKSON_SERIALIZER);
+		this(name, keyStrategyFactory, (StateSerializer<S>) (StateSerializer<?>) DEFAULT_JACKSON_SERIALIZER);
 	}
 	/**
 	 * Constructs a StateGraph with the provided key strategy factory.
 	 * @param keyStrategyFactory the factory for providing key strategies
 	 */
+	@SuppressWarnings("unchecked")
 	public StateGraph(KeyStrategyFactory keyStrategyFactory) {
-		this(null, keyStrategyFactory, DEFAULT_JACKSON_SERIALIZER);
+		this(null, keyStrategyFactory, (StateSerializer<S>) (StateSerializer<?>) DEFAULT_JACKSON_SERIALIZER);
 	}
 
 	/**
 	 * Default constructor that initializes a StateGraph with a Jackson-based state
 	 * serializer.
 	 */
+	@SuppressWarnings("unchecked")
 	public StateGraph() {
-		this(null, HashMap::new, DEFAULT_JACKSON_SERIALIZER);
+		this(null, HashMap::new, (StateSerializer<S>) (StateSerializer<?>) DEFAULT_JACKSON_SERIALIZER);
 	}
 
 	/**
@@ -160,11 +165,11 @@ public class StateGraph<S extends GraphState> {
 	 * @param keyStrategyFactory the factory for providing key strategies
 	 * @param stateSerializer the state serializer to use
 	 */
-	public StateGraph(KeyStrategyFactory keyStrategyFactory, StateSerializer stateSerializer) {
+	public StateGraph(KeyStrategyFactory keyStrategyFactory, StateSerializer<S> stateSerializer) {
 		this(null, keyStrategyFactory, Objects.requireNonNull(stateSerializer, "stateSerializer cannot be null"));
 	}
 
-	public StateGraph(String name, Class<S> graphStateClass, StateSerializer stateSerializer) {
+	public StateGraph(String name, Class<S> graphStateClass, StateSerializer<S> stateSerializer) {
         this.name = name;
 		this.graphStateClass = graphStateClass;
 		this.keyStrategyFactory = () -> StateFieldScanner.getKeyStrategies(graphStateClass);
@@ -178,10 +183,10 @@ public class StateGraph<S extends GraphState> {
 	 * @param keyStrategyFactory the factory for providing key strategies
 	 * @param stateSerializer the state serializer to use
 	 */
-	public StateGraph(String name, KeyStrategyFactory keyStrategyFactory, StateSerializer stateSerializer) {
+	public StateGraph(String name, KeyStrategyFactory keyStrategyFactory, StateSerializer<S> stateSerializer) {
 		this.name = name;
 		this.keyStrategyFactory = keyStrategyFactory;
-		this.graphStateClass = (Class<S>) OverAllState.class;
+		this.graphStateClass = null;
 		this.stateSerializer = Objects.requireNonNull(stateSerializer, "stateSerializer cannot be null");
 	}
 
@@ -197,7 +202,7 @@ public class StateGraph<S extends GraphState> {
 	 * Gets the state serializer used by this graph.
 	 * @return the state serializer
 	 */
-	public StateSerializer getStateSerializer() {
+	public StateSerializer<S> getStateSerializer() {
 		return stateSerializer;
 	}
 
@@ -205,7 +210,7 @@ public class StateGraph<S extends GraphState> {
 	 * Gets the state factory associated with this graph's state serializer.
 	 * @return the state factory
 	 */
-	public final AgentStateFactory<OverAllState> getStateFactory() {
+	public final AgentStateFactory<S> getStateFactory() {
 		return stateSerializer.stateFactory();
 	}
 
@@ -215,6 +220,10 @@ public class StateGraph<S extends GraphState> {
 	 */
 	public final KeyStrategyFactory getKeyStrategyFactory() {
 		return keyStrategyFactory;
+	}
+
+	public Class<S> getGraphStateClass() {
+		return graphStateClass;
 	}
 
 	/**
@@ -314,7 +323,8 @@ public class StateGraph<S extends GraphState> {
 			throw Errors.invalidNodeIdentifier.exception(END);
 		}
 
-		var node = new SubCompiledGraphNode(id, subGraph);
+		@SuppressWarnings({"unchecked", "rawtypes"})
+		Node<S> node = (Node<S>) new SubCompiledGraphNode(id, (CompiledGraph) subGraph);
 
 		if (nodes.elements.contains(node)) {
 			throw Errors.duplicateNodeError.exception(id);

@@ -17,6 +17,7 @@ package com.alibaba.cloud.ai.graph.executor;
 
 import com.alibaba.cloud.ai.graph.GraphRunnerContext;
 import com.alibaba.cloud.ai.graph.GraphResponse;
+import com.alibaba.cloud.ai.graph.GraphState;
 import com.alibaba.cloud.ai.graph.NodeOutput;
 import com.alibaba.cloud.ai.graph.checkpoint.BaseCheckpointSaver;
 
@@ -30,7 +31,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * providing a common base for all execution handlers. It encapsulates common
  * functionality that can be shared across different executors.
  */
-public abstract class BaseGraphExecutor {
+public abstract class BaseGraphExecutor<S extends GraphState> {
 
 	/**
 	 * Abstract method to be implemented by subclasses. This demonstrates polymorphism as
@@ -39,7 +40,7 @@ public abstract class BaseGraphExecutor {
 	 * @param resultValue the atomic reference to store the result value
 	 * @return Flux of GraphResponse with execution result
 	 */
-	public abstract Flux<GraphResponse<NodeOutput<?>>> execute(GraphRunnerContext context,
+	public abstract Flux<GraphResponse<NodeOutput<S>>> execute(GraphRunnerContext<S> context,
 			AtomicReference<Object> resultValue);
 
 	/**
@@ -49,15 +50,15 @@ public abstract class BaseGraphExecutor {
 	 * @param resultValue the atomic reference to store the result value
 	 * @return Flux of GraphResponse with completion handling result
 	 */
-	protected Flux<GraphResponse<NodeOutput<?>>> handleCompletion(GraphRunnerContext context,
+	protected Flux<GraphResponse<NodeOutput<S>>> handleCompletion(GraphRunnerContext<S>context,
 			AtomicReference<Object> resultValue) {
 		return Flux.defer(() -> {
 			try {
 				if (context.getCompiledGraph().compileConfig.releaseThread()
 						&& context.getCompiledGraph().compileConfig.checkpointSaver().isPresent()) {
-					BaseCheckpointSaver.Tag tag = context
+					BaseCheckpointSaver.Tag tag = ((BaseCheckpointSaver) context
 						.getCompiledGraph().compileConfig.checkpointSaver()
-						.get()
+						.get())
 						.release(context.getConfig());
 					resultValue.set(tag);
 				} else {

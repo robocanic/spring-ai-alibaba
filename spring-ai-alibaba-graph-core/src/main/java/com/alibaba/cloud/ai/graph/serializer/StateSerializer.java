@@ -15,8 +15,10 @@
  */
 package com.alibaba.cloud.ai.graph.serializer;
 
+import com.alibaba.cloud.ai.graph.GraphState;
 import com.alibaba.cloud.ai.graph.OverAllState;
 import com.alibaba.cloud.ai.graph.state.AgentStateFactory;
+import com.alibaba.cloud.ai.graph.utils.StateFieldScanner;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -28,35 +30,57 @@ import java.io.ObjectOutputStream;
 import java.util.Map;
 import java.util.Objects;
 
-public abstract class StateSerializer implements Serializer<OverAllState> {
+/**
+ * Abstract base class for serializing and deserializing graph state objects.
+ *
+ * @param <S> the concrete graph state type
+ */
+public abstract class StateSerializer<S extends GraphState> implements Serializer<S> {
 
-	private final AgentStateFactory<OverAllState> stateFactory;
+	private final AgentStateFactory<S> stateFactory;
 
-	protected StateSerializer(AgentStateFactory<OverAllState> stateFactory) {
+	protected StateSerializer(AgentStateFactory<S> stateFactory) {
 		this.stateFactory = Objects.requireNonNull(stateFactory, "stateFactory cannot be null");
 	}
 
-	public final AgentStateFactory<OverAllState> stateFactory() {
+	public final AgentStateFactory<S> stateFactory() {
 		return stateFactory;
 	}
 
-	public final OverAllState stateOf(Map<String, Object> data) {
+	public final S stateOf(Map<String, Object> data) {
 		Objects.requireNonNull(data, "data cannot be null");
 		return stateFactory.apply(data);
 	}
 
-	public final OverAllState cloneObject(Map<String, Object> data) throws IOException, ClassNotFoundException {
+	public final S cloneObject(Map<String, Object> data) throws IOException, ClassNotFoundException {
 		Objects.requireNonNull(data, "data cannot be null");
 		return cloneObject(stateFactory().apply(data));
 	}
 
-	@Override
-	public final void write(OverAllState object, ObjectOutput out) throws IOException {
-		writeData(object.data(), out);
+	/**
+	 * Converts a state object to its data map representation.
+	 * <p>
+	 * For {@link OverAllState}, this returns {@code state.data()}.
+	 * For POJO states, this uses {@link StateFieldScanner#toMap(GraphState)}.
+	 * Subclasses may override for custom conversion logic.
+	 * </p>
+	 * @param state the state object to convert
+	 * @return a map representation of the state
+	 */
+	public Map<String, Object> stateToData(S state) {
+		if (state instanceof OverAllState oas) {
+			return oas.data();
+		}
+		return StateFieldScanner.toMap(state);
 	}
 
 	@Override
-	public final OverAllState read(ObjectInput in) throws IOException, ClassNotFoundException {
+	public final void write(S object, ObjectOutput out) throws IOException {
+		writeData(stateToData(object), out);
+	}
+
+	@Override
+	public final S read(ObjectInput in) throws IOException, ClassNotFoundException {
 		return stateFactory().apply(readData(in));
 	}
 

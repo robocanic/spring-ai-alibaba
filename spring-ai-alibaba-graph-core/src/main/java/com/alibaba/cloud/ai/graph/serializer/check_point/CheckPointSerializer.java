@@ -15,7 +15,6 @@
  */
 package com.alibaba.cloud.ai.graph.serializer.check_point;
 
-import com.alibaba.cloud.ai.graph.OverAllState;
 import com.alibaba.cloud.ai.graph.checkpoint.Checkpoint;
 import com.alibaba.cloud.ai.graph.serializer.StateSerializer;
 import com.alibaba.cloud.ai.graph.serializer.std.NullableObjectSerializer;
@@ -26,9 +25,9 @@ import java.io.ObjectOutput;
 
 public class CheckPointSerializer implements NullableObjectSerializer<Checkpoint> {
 
-	final StateSerializer stateSerializer;
+	final StateSerializer<?> stateSerializer;
 
-	public CheckPointSerializer(StateSerializer stateSerializer) {
+	public CheckPointSerializer(StateSerializer<?> stateSerializer) {
 		this.stateSerializer = stateSerializer;
 	}
 
@@ -37,8 +36,7 @@ public class CheckPointSerializer implements NullableObjectSerializer<Checkpoint
 		out.writeUTF(object.getId());
 		writeNullableUTF(object.getNodeId(), out);
 		writeNullableUTF(object.getNextNodeId(), out);
-		OverAllState state = (OverAllState) stateSerializer.stateFactory().apply(object.getState());
-		stateSerializer.write(state, out);
+		stateSerializer.writeData(object.getState(), out);
 	}
 
 	@Override
@@ -47,7 +45,7 @@ public class CheckPointSerializer implements NullableObjectSerializer<Checkpoint
 			.id(in.readUTF())
 			.nodeId(readNullableUTF(in).orElse(null))
 			.nextNodeId(readNullableUTF(in).orElse(null))
-			.state((OverAllState) stateSerializer.read(in))
+			.state(stateSerializer.readData(in))
 			.build();
 	}
 

@@ -15,7 +15,7 @@
  */
 package com.alibaba.cloud.ai.graph.serializer.std;
 
-import com.alibaba.cloud.ai.graph.OverAllState;
+import com.alibaba.cloud.ai.graph.GraphState;
 import com.alibaba.cloud.ai.graph.serializer.Serializer;
 import com.alibaba.cloud.ai.graph.serializer.StateSerializer;
 import com.alibaba.cloud.ai.graph.state.AgentStateFactory;
@@ -29,7 +29,12 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class ObjectStreamStateSerializer extends StateSerializer<OverAllState> {
+/**
+ * StateSerializer implementation using Java Object Streams.
+ *
+ * @param <S> the concrete graph state type
+ */
+public class ObjectStreamStateSerializer<S extends GraphState> extends StateSerializer<S> {
 
 	private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(ObjectStreamStateSerializer.class);
 
@@ -37,7 +42,7 @@ public class ObjectStreamStateSerializer extends StateSerializer<OverAllState> {
 
 	private final MapSerializer mapSerializer = new MapSerializer();
 
-	public ObjectStreamStateSerializer(AgentStateFactory<OverAllState> stateFactory) {
+	public ObjectStreamStateSerializer(AgentStateFactory<S> stateFactory) {
 		super(stateFactory);
 		mapper.register(Collection.class, new ListSerializer());
 		mapper.register(Map.class, new MapSerializer());
@@ -47,13 +52,11 @@ public class ObjectStreamStateSerializer extends StateSerializer<OverAllState> {
 		return mapper;
 	}
 
-	@Override
-	public Map<String, Object> toMap(OverAllState state) {
-		return state.data();
+	public Map<String, Object> toMap(S state) {
+		return stateToData(state);
 	}
 
-	@Override
-	public OverAllState fromMap(Map<String, Object> data) {
+	public S fromMap(Map<String, Object> data) {
 		return stateFactory().apply(data);
 	}
 

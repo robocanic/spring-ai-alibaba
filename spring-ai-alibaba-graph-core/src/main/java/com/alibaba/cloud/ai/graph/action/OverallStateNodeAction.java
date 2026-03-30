@@ -86,10 +86,8 @@ public interface OverallStateNodeAction {
 		}
 		return state -> {
 			Map<String, Object> partialUpdate = action.apply(state);
-			// Store the delta in the result so the executor can apply it correctly
-			// (respecting key strategies such as AppendStrategy).
-			// Do NOT modify the state here to avoid double-merging.
-			return NodeActionResult.ofLegacy(state, partialUpdate);
+			OverAllState overAllState = new OverAllState(partialUpdate);
+			return NodeActionResult.of(overAllState);
 		};
 	}
 

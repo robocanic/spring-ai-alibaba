@@ -40,17 +40,18 @@ public abstract class DiagramGenerator {
 	}
 
 	public record Context(StringBuilder sb, String title, boolean printConditionalEdge, boolean isSubGraph,
-			StateGraph.Nodes rootNodes) {
-		public Context(String title, boolean printConditionalEdge, boolean isSubGraph, StateGraph.Nodes rootNodes) {
+			StateGraph.Nodes<?> rootNodes) {
+		public Context(String title, boolean printConditionalEdge, boolean isSubGraph, StateGraph.Nodes<?> rootNodes) {
 			this(new StringBuilder(), title, printConditionalEdge, isSubGraph, rootNodes);
 		}
 
+		@SuppressWarnings("rawtypes")
 		public boolean anySubGraphWithId(String id) {
 
 			return rootNodes.elements.stream().filter(node -> node instanceof SubGraphNode).flatMap(node -> {
 				var subGraph = ((SubGraphNode) node).subGraph();
 				return Stream.concat(Stream.of(node.id()),
-						subGraph.nodes.elements.stream().filter(n -> n instanceof SubGraphNode).map(Node::id));
+						subGraph.nodes.elements.stream().filter(n -> n instanceof SubGraphNode).map(n -> ((Node) n).id()));
 			}).anyMatch(subGraphId -> subGraphId.equals(id));
 		}
 
@@ -84,7 +85,7 @@ public abstract class DiagramGenerator {
 				return this;
 			}
 
-			public Context build(StateGraph.Nodes nodes) {
+			public Context build(StateGraph.Nodes<?> nodes) {
 				return new Context(new StringBuilder(), title, printConditionalEdge, IsSubGraph, nodes);
 			}
 
@@ -197,7 +198,7 @@ public abstract class DiagramGenerator {
 	 * @param printConditionalEdge Whether to print the conditional edge condition.
 	 * @return A string representation of the graph.
 	 */
-	public final String generate(StateGraph.Nodes nodes, StateGraph.Edges edges, String title,
+	public final String generate(StateGraph.Nodes<?> nodes, StateGraph.Edges edges, String title,
 			boolean printConditionalEdge) {
 
 		return generate(nodes, edges,
@@ -219,7 +220,7 @@ public abstract class DiagramGenerator {
 	 * @param ctx the initial context, which must not be null
 	 * @return the generated context, which will not be null
 	 */
-	protected final Context generate(StateGraph.Nodes nodes, StateGraph.Edges edges, Context ctx) {
+	protected final Context generate(StateGraph.Nodes<?> nodes, StateGraph.Edges edges, Context ctx) {
 
 		appendHeader(ctx);
 

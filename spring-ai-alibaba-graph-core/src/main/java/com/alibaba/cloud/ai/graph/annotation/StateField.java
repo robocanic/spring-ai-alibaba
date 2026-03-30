@@ -62,8 +62,8 @@ import java.lang.annotation.Target;
  *   <li>{@code transient} fields must not be annotated with {@code @StateField}.</li>
  * </ul>
  *
- * @author spring-ai-alibaba
- * @since 1.0
+ * @author robocanic
+ * @since 2.0
  */
 @Target(ElementType.FIELD)
 @Retention(RetentionPolicy.RUNTIME)

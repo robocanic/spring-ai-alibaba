@@ -19,6 +19,7 @@ import com.alibaba.cloud.ai.graph.CompileConfig;
 import com.alibaba.cloud.ai.graph.GraphState;
 import com.alibaba.cloud.ai.graph.KeyStrategy;
 import com.alibaba.cloud.ai.graph.OverAllState;
+import com.alibaba.cloud.ai.graph.OverAllStateBuilder;
 import com.alibaba.cloud.ai.graph.RunnableConfig;
 import com.alibaba.cloud.ai.graph.action.AsyncMultiCommandAction;
 import com.alibaba.cloud.ai.graph.action.AsyncNodeActionWithConfig;
@@ -27,6 +28,7 @@ import com.alibaba.cloud.ai.graph.internal.edge.EdgeCondition;
 import com.alibaba.cloud.ai.graph.streaming.GraphFlux;
 import com.alibaba.cloud.ai.graph.streaming.ParallelGraphFlux;
 import com.alibaba.cloud.ai.graph.utils.LifeListenerUtil;
+import com.alibaba.cloud.ai.graph.utils.StateFieldScanner;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -273,6 +275,7 @@ public class ConditionalParallelNode<S extends GraphState> extends Node<S> {
 		 * Process parallel execution results, handling GraphFlux, traditional Flux, and regular objects.
 		 * Priority: GraphFlux > traditional Flux > regular objects
 		 */
+		@SuppressWarnings({"unchecked", "rawtypes"})
 		private NodeActionResult<S> processParallelResults(
 				List<NodeActionResult<S>> results,
 				S state,
@@ -280,44 +283,30 @@ public class ConditionalParallelNode<S extends GraphState> extends Node<S> {
 
 			// Check if any result contains GraphFlux or traditional Flux
 			List<GraphFlux<?>> graphFluxList = new ArrayList<>();
-			List<String> graphFluxNodeIds = new ArrayList<>();
 
 			// Collect non-streaming state
 			Map<String, Object> mergedState = new HashMap<>();
-			
-			// First pass: collect GraphFlux and traditional Flux instances
+
+			// First pass: collect streaming and non-streaming results
 			for (int i = 0; i < results.size(); i++) {
-				Map<String, Object> result = results.get(i);
-				AsyncNodeActionWithConfig action = actionList.get(i);
+				NodeActionResult<S> result = results.get(i);
+				AsyncNodeActionWithConfig<S> action = actionList.get(i);
 				String effectiveNodeId = generateEffectiveNodeId(action, i);
 
-				for (Map.Entry<String, Object> entry : result.entrySet()) {
-					Object value = entry.getValue();
+				if (result.hasStreamingFlux()) {
+					Flux<?> streamingFlux = result.streamingFlux();
+					GraphFlux<?> graphFlux = GraphFlux.of(effectiveNodeId,
+							StateFieldScanner.getStreamingFieldKey(state.getClass()), streamingFlux, null, null);
+					graphFluxList.add(graphFlux);
+				}
 
-					if (value instanceof GraphFlux) {
-						GraphFlux<?> graphFlux = (GraphFlux<?>) value;
-						String graphFluxNodeId = graphFlux.getNodeId() != null ? graphFlux.getNodeId() : effectiveNodeId;
-
-						if (!graphFluxNodeId.equals(graphFlux.getNodeId())) {
-							@SuppressWarnings("unchecked")
-							GraphFlux<Object> castedFlux = (GraphFlux<Object>) graphFlux;
-							@SuppressWarnings("unchecked")
-							GraphFlux<Object> newGraphFlux = GraphFlux.of(graphFluxNodeId, entry.getKey(),
-									castedFlux.getFlux(), castedFlux.getMapResult(), castedFlux.getChunkResult());
-							graphFlux = newGraphFlux;
-						}
-
-						graphFluxList.add(graphFlux);
-						graphFluxNodeIds.add(graphFluxNodeId);
-					} else if (value instanceof Flux flux) {
-						// Traditional Flux - wrap it in GraphFlux for unified processing
-						GraphFlux<Object> graphFlux = GraphFlux.of(effectiveNodeId, entry.getKey(), flux, null, null);
-						graphFluxList.add(graphFlux);
-					} else {
-						// Regular object - add to merged state
-						Map<String, Object> singleEntryMap = Map.of(entry.getKey(), value);
-						mergedState = OverAllState.updateState(mergedState, singleEntryMap, keyStrategyMap);
-					}
+				if (result.hasLegacyDelta()) {
+					// Legacy path: merge partial delta map
+					mergedState = OverAllState.updateState(mergedState, result.legacyDelta(), keyStrategyMap);
+				} else if (result.state() != null) {
+					// POJO path: convert state to map and merge
+					Map<String, Object> stateMap = StateFieldScanner.toMap(result.state());
+					mergedState = OverAllState.updateState(mergedState, stateMap, keyStrategyMap);
 				}
 			}
 
@@ -326,14 +315,19 @@ public class ConditionalParallelNode<S extends GraphState> extends Node<S> {
 				// We have GraphFlux instances - create ParallelGraphFlux
 				ParallelGraphFlux parallelGraphFlux = ParallelGraphFlux.of(graphFluxList);
 				mergedState.put("__parallel_graph_flux__", parallelGraphFlux);
-				return mergedState;
-			} else {
-				// No streaming output, directly merge all results
-				Map<String, Object> initialState = new HashMap<>();
-				return results.stream()
-						.reduce(initialState,
-								(result, actionResult) -> OverAllState.updateState(result, actionResult, keyStrategyMap));
 			}
+
+			// Apply the merged state to the original state
+			if (state instanceof OverAllState oas) {
+				OverAllState updatedState = OverAllStateBuilder.builder()
+						.withData(OverAllState.updateState(oas.data(), mergedState, keyStrategyMap))
+						.withKeyStrategies(oas.keyStrategies())
+						.withStore(oas.getStore())
+						.build();
+				return NodeActionResult.of((S) updatedState);
+			}
+
+			return NodeActionResult.of(state);
 		}
 
 		/**

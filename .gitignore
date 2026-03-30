@@ -59,3 +59,9 @@ modified_mcp_config.json
 **/spans.json
 
 .checkstyle
+
+# openspec - ignore entire openspec directory
+openspec
+
+# qoder - ignore entire .qoder directory
+.qoder

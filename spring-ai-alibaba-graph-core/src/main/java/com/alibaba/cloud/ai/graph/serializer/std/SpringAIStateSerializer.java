@@ -28,7 +28,7 @@ import org.springframework.ai.chat.messages.ToolResponseMessage;
  * executor. It extends {@link ObjectStreamStateSerializer} for handling the serialization
  * of the AgentExecutor.State object.
  */
-public class SpringAIStateSerializer extends ObjectStreamStateSerializer {
+public class SpringAIStateSerializer extends ObjectStreamStateSerializer<OverAllState> {
 
 	public SpringAIStateSerializer() {
 		this(OverAllState::new);

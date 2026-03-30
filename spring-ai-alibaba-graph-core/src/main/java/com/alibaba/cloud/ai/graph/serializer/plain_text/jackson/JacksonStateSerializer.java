@@ -16,7 +16,7 @@
 package com.alibaba.cloud.ai.graph.serializer.plain_text.jackson;
 
 import com.alibaba.cloud.ai.graph.GraphResponse;
-import com.alibaba.cloud.ai.graph.OverAllState;
+import com.alibaba.cloud.ai.graph.GraphState;
 import com.alibaba.cloud.ai.graph.serializer.Serializer;
 import com.alibaba.cloud.ai.graph.serializer.StateSerializer;
 import com.alibaba.cloud.ai.graph.state.AgentStateFactory;
@@ -39,20 +39,21 @@ import com.fasterxml.jackson.datatype.jdk8.Jdk8Module;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
 /**
- * Base Implementation of {@link StateSerializer} using Jackson library. Need to
- * be extended from specific state implementation
+ * Base Implementation of {@link StateSerializer} using Jackson library.
+ *
+ * @param <S> the concrete graph state type
  */
-public abstract class JacksonStateSerializer extends StateSerializer {
+public abstract class JacksonStateSerializer<S extends GraphState> extends StateSerializer<S> {
 
 	protected final ObjectMapper objectMapper;
 
 	protected TypeMapper typeMapper = new TypeMapper();
 
-	protected JacksonStateSerializer(AgentStateFactory<OverAllState> stateFactory) {
+	protected JacksonStateSerializer(AgentStateFactory<S> stateFactory) {
 		this(stateFactory, new ObjectMapper());
 	}
 
-	protected JacksonStateSerializer(AgentStateFactory<OverAllState> stateFactory, ObjectMapper objectMapper) {
+	protected JacksonStateSerializer(AgentStateFactory<S> stateFactory, ObjectMapper objectMapper) {
 		super(stateFactory);
 		this.objectMapper = Objects.requireNonNull(objectMapper, "objectMapper cannot be null");
 		this.objectMapper.setVisibility(PropertyAccessor.FIELD, JsonAutoDetect.Visibility.ANY);

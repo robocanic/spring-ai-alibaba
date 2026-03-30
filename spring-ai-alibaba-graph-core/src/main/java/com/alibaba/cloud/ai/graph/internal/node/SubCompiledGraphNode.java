@@ -18,6 +18,7 @@ package com.alibaba.cloud.ai.graph.internal.node;
 
 import com.alibaba.cloud.ai.graph.CompiledGraph;
 import com.alibaba.cloud.ai.graph.KeyStrategy;
+import com.alibaba.cloud.ai.graph.OverAllState;
 import com.alibaba.cloud.ai.graph.StateGraph;
 import com.alibaba.cloud.ai.graph.SubGraphNode;
 import com.alibaba.cloud.ai.graph.state.strategy.ReplaceStrategy;
@@ -27,13 +28,14 @@ import java.util.Objects;
 
 import static com.alibaba.cloud.ai.graph.internal.node.ResumableSubGraphAction.outputKeyToParent;
 
-public class SubCompiledGraphNode extends Node implements SubGraphNode {
+@SuppressWarnings({"unchecked", "rawtypes"})
+public class SubCompiledGraphNode extends Node<OverAllState> implements SubGraphNode {
 	private final CompiledGraph subGraph;
 	private final String id;
 
 	public SubCompiledGraphNode(String id, CompiledGraph subGraph) {
 		super(Objects.requireNonNull(id, "id cannot be null"),
-				(config) -> new SubCompiledGraphNodeAction(id, config, subGraph));
+				(Node.ActionFactory<OverAllState>) (config) -> new SubCompiledGraphNodeAction(id, config, subGraph));
 		this.subGraph = subGraph;
 		this.id = id;
 	}
